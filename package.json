@@ -15,7 +15,14 @@
   "keywords": [],
   "sideEffects": false,
   "exports": {
-    ".": "./dist/index.mjs",
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./client": {
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.mjs"
+    },
     "./package.json": "./package.json"
   },
   "main": "./dist/index.mjs",

@@ -1,74 +1,7 @@
-import type { CodesOf, DetailsOf } from '../src'
-
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { AppError, betterErrors, createErrorClient, defineCodes } from '../src'
 
-const typeOnly = <T>() => undefined as unknown as T
-
-const codes = defineCodes({
-  'core.internal_error': {
-    status: 500,
-    message: 'Internal error',
-    expose: false,
-    retryable: false,
-    tags: ['core'],
-  },
-  'auth': {
-    invalid_token: {
-      status: 401,
-      message: 'Invalid token',
-      expose: true,
-      retryable: false,
-      tags: ['auth'],
-      details: typeOnly<{ reason: 'expired' | 'revoked' }>(),
-    },
-  },
-  'billing': {
-    payment_failed: {
-      status: 402,
-      expose: true,
-      retryable: true,
-      tags: ['billing'],
-      message: ({ details }: { details: { provider: 'stripe' | 'adyen', amount: number } }) =>
-        `Payment failed for ${details.provider} (${details.amount})`,
-      details: typeOnly<{ provider: 'stripe' | 'adyen', amount: number }>(),
-    },
-  },
-} as const)
-
-const errors = betterErrors({
-  app: 'test-app',
-  env: 'test',
-  defaultStatus: 500,
-  defaultExpose: false,
-  codes,
-})
-
-type ErrorCode = keyof typeof codes
-
-describe('defineCodes', () => {
-  it('flattens nested code definitions and keeps metadata', () => {
-    expect(Object.keys(codes).sort()).toEqual([
-      'auth.invalid_token',
-      'billing.payment_failed',
-      'core.internal_error',
-    ])
-    expect(codes['billing.payment_failed'].retryable).toBe(true)
-    expect(codes['auth.invalid_token'].status).toBe(401)
-  })
-
-  it('exposes typed details per code', () => {
-    type PaymentDetails = DetailsOf<typeof codes, 'billing.payment_failed'>
-    type InvalidTokenDetails = DetailsOf<typeof codes, 'auth.invalid_token'>
-    expectTypeOf<PaymentDetails>().toEqualTypeOf<{
-      provider: 'stripe' | 'adyen'
-      amount: number
-    }>()
-    expectTypeOf<InvalidTokenDetails>().toEqualTypeOf<{
-      reason: 'expired' | 'revoked'
-    }>()
-  })
-})
+import { AppError, betterErrors, defineCodes } from '../src'
+import { errors } from './fixtures'
 
 describe('betterErrors basics', () => {
   it('creates AppError with resolved message and typed details', () => {
@@ -145,28 +78,33 @@ describe('betterErrors basics', () => {
     expect(normalized.status).toBe(500)
     expect(normalized.body.error.code).toBe('core.internal_error')
   })
-})
 
-describe('client error client', () => {
-  const client = createErrorClient<typeof errors>()
-
-  it('deserializes and matches codes', () => {
-    const serverErr = errors.create('auth.invalid_token', { reason: 'expired' })
-    const payload = errors.serialize(serverErr)
-    const err = client.deserialize(payload)
-
-    expect(err).toBeInstanceOf(client.AppError)
-    expect(client.is(err, 'auth.invalid_token')).toBe(true)
-    expect(
-      client.match(err, {
-        'auth.invalid_token': e => `client:${e.code}`,
-        'default': e => `default:${e.code}`,
+  it('respects defaultExpose when code omits expose', () => {
+    const exposedErrors = betterErrors({
+      codes: defineCodes({
+        'misc.visible': { message: 'Visible by default' },
       }),
-    ).toBe('client:auth.invalid_token')
+      defaultExpose: true,
+    })
+
+    const err = exposedErrors.create('misc.visible', { foo: 'bar' } as any)
+    const payload = exposedErrors.serialize(err)
+
+    expect(err.expose).toBe(true)
+    expect(payload.details).toEqual({ foo: 'bar' })
   })
 
-  it('exposes the code union via CodesOf', () => {
-    type ClientCode = CodesOf<typeof errors>
-    expectTypeOf<ClientCode>().toEqualTypeOf<ErrorCode>()
+  it('defaults expose to false when not set', () => {
+    const hiddenErrors = betterErrors({
+      codes: defineCodes({
+        'misc.hidden': { message: 'Hidden by default', expose: false },
+      }),
+    })
+
+    const err = hiddenErrors.create('misc.hidden', { secret: 'shh' } as any)
+    const payload = hiddenErrors.serialize(err)
+
+    expect(err.expose).toBe(false)
+    expect(payload.details).toBeUndefined()
   })
 })

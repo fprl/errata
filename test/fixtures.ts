@@ -1,6 +1,4 @@
-import { betterErrors, defineCodes } from '../src'
-
-const typeOnly = <T>(): T => undefined as unknown as T
+import { betterErrors, code, defineCodes } from '../src'
 
 export const codes = defineCodes({
   'core.internal_error': {
@@ -11,25 +9,22 @@ export const codes = defineCodes({
     tags: ['core'],
   },
   'auth': {
-    invalid_token: {
+    invalid_token: code<{ reason: 'expired' | 'revoked' }>({
       status: 401,
       message: 'Invalid token',
       expose: true,
       retryable: false,
       tags: ['auth'],
-      details: typeOnly<{ reason: 'expired' | 'revoked' }>(),
-    },
+    }),
   },
   'billing': {
-    payment_failed: {
+    payment_failed: code<{ provider: 'stripe' | 'adyen', amount: number }>({
       status: 402,
       expose: true,
       retryable: true,
       tags: ['billing'],
-      message: ({ details }: { details: { provider: 'stripe' | 'adyen', amount: number } }) =>
-        `Payment failed for ${details.provider} (${details.amount})`,
-      details: typeOnly<{ provider: 'stripe' | 'adyen', amount: number }>(),
-    },
+      message: ({ details }) => `Payment failed for ${details.provider} (${details.amount})`,
+    }),
   },
 } as const)
 

@@ -2,6 +2,7 @@ import type { DetailsOf } from '../src'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
+import { code, defineCodes } from '../src'
 import { codes } from './fixtures'
 
 describe('defineCodes', () => {
@@ -25,5 +26,33 @@ describe('defineCodes', () => {
     expectTypeOf<InvalidTokenDetails>().toEqualTypeOf<{
       reason: 'expired' | 'revoked'
     }>()
+  })
+
+  it('accepts typed details via code helper and mixes with raw configs', () => {
+    const localCodes = defineCodes({
+      'auth.rejected': code<{ reason: 'expired' | 'missing' }>({
+        status: 401,
+        message: 'Auth rejected',
+      }),
+      'payments': {
+        failed: code<{ amount: number }>({
+          status: 402,
+          message: ({ details }) => `Failed to charge $${details.amount}`,
+        }),
+      },
+      'misc': {
+        simple: { message: 'ok' },
+      },
+    } as const)
+
+    type RejectDetails = DetailsOf<typeof localCodes, 'auth.rejected'>
+    type PaymentDetails = DetailsOf<typeof localCodes, 'payments.failed'>
+    type SimpleDetails = DetailsOf<typeof localCodes, 'misc.simple'>
+
+    expectTypeOf<RejectDetails>().toEqualTypeOf<{ reason: 'expired' | 'missing' }>()
+    expectTypeOf<PaymentDetails>().toEqualTypeOf<{ amount: number }>()
+    expectTypeOf<SimpleDetails>().toEqualTypeOf<unknown>()
+
+    expect('details' in (localCodes['auth.rejected'] as any)).toBe(false)
   })
 })

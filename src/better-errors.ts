@@ -211,7 +211,7 @@ export function betterErrors<TCodes extends CodesRecord>({
     }
 
     if (isSerializedError(err)) {
-      return deserialize(err as SerializedError<CodeOf<TCodes>>)
+      return deserialize(err as SerializedError<CodeOf<TCodes>, any>)
     }
 
     const code = fallback ?? fallbackCode

@@ -1,5 +1,10 @@
 import type { CodeConfig, CodesRecord } from './types'
 
+type CodeWithoutDetails<TDetails> = Omit<CodeConfig<TDetails>, 'details'> & {
+  /** Prevent passing runtime details; typing only. */
+  details?: never
+}
+
 type FlattenCodes<
   TInput extends Record<string, CodeConfig<any> | Record<string, CodeConfig<any>>>,
 > = {
@@ -50,4 +55,13 @@ export function defineCodes<
   TInput extends Record<string, CodeConfig<any> | Record<string, CodeConfig<any>>>,
 >(input: TInput): FlattenedCodes<TInput> {
   return flattenCodes(input) as FlattenedCodes<TInput>
+}
+
+/**
+ * Type-only helper to declare the `details` shape without runtime noise.
+ */
+export function code<TDetails = void>(
+  config: CodeWithoutDetails<TDetails>,
+): CodeConfig<TDetails> {
+  return config as CodeConfig<TDetails>
 }

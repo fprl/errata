@@ -25,9 +25,13 @@ export interface CodeConfig<TDetails = unknown> {
 export type CodesRecord = Record<string, CodeConfig<any>>
 export type CodeOf<TCodes extends CodesRecord> = Extract<keyof TCodes, string>
 
+type ExtractDetails<T> = T extends CodeConfig<infer D>
+  ? D extends void | undefined ? unknown : D
+  : unknown
+
 export type DetailsOf<
   TCodes extends CodesRecord,
   TCode extends CodeOf<TCodes>,
-> = TCodes[TCode]['details'] extends undefined ? unknown : TCodes[TCode]['details']
+> = ExtractDetails<TCodes[TCode]>
 
 export type CodesOf<T extends { _codesBrand?: any }> = NonNullable<T['_codesBrand']>

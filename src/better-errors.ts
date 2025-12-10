@@ -55,6 +55,12 @@ export interface BetterErrorsInstance<TCodes extends CodesRecord> {
     err: unknown,
     fallbackCode?: CodeOf<TCodes>,
   ) => AppErrorFor<TCodes, CodeOf<TCodes>>
+  /** Promise helper that returns a `[data, error]` tuple without try/catch. */
+  safe: <T>(
+    promise: Promise<T>,
+  ) => Promise<
+    [data: T, error: null] | [data: null, error: AppErrorFor<TCodes, CodeOf<TCodes>>]
+  >
   /** Type-safe code check; supports single code or list. */
   is: <C extends CodeOf<TCodes>>(
     err: unknown,
@@ -222,6 +228,21 @@ export function betterErrors<TCodes extends CodesRecord>({
     return create(code, { cause: err } as any)
   }
 
+  /** Promise helper that returns a `[data, error]` tuple without try/catch. */
+  const safe = async <T>(
+    promise: Promise<T>,
+  ): Promise<
+    [data: T, error: null] | [data: null, error: AppErrorFor<TCodes, CodeOf<TCodes>>]
+  > => {
+    try {
+      const data = await promise
+      return [data, null]
+    }
+    catch (err) {
+      return [null, ensure(err)]
+    }
+  }
+
   /** Type-safe code check; supports single code or list. */
   const is = <C extends CodeOf<TCodes>>(
     err: unknown,
@@ -275,6 +296,8 @@ export function betterErrors<TCodes extends CodesRecord>({
     throw: throwFn,
     /** Normalize unknown errors into AppError, using an optional fallback code. */
     ensure,
+    /** Promise helper that returns a `[data, error]` tuple without try/catch. */
+    safe,
     /** Type-safe code check; supports single code or list. */
     is,
     /** Code-based matcher with required default. */

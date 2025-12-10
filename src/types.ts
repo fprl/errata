@@ -38,18 +38,35 @@ export type CodesOf<T extends { _codesBrand?: any }> = NonNullable<T['_codesBran
 
 // ─── Pattern Matching Types ───────────────────────────────────────────────────
 
+/**
+ * Extracts dot-separated prefixes from a string type.
+ * E.g., 'auth.login.failed' -> 'auth' | 'auth.login'
+ */
 type DotPrefixes<S extends string> = S extends `${infer Head}.${infer Tail}`
   ? Head | `${Head}.${DotPrefixes<Tail>}`
   : never
 
 /**
- * A pattern is either an exact code or a wildcard pattern ending with `.*`.
- * Wildcard patterns match any code starting with the prefix.
- * Examples: `'auth.invalid_token'` (exact), `'auth.*'` (wildcard)
+ * Valid wildcard patterns derived from actual code prefixes.
+ * Used internally for type narrowing in match handlers.
+ */
+type ValidWildcards<TCodes extends CodesRecord> = `${DotPrefixes<CodeOf<TCodes>>}.*`
+
+/**
+ * Pattern type for is() - uses ${string}.* to hide wildcards from autocomplete.
+ * Type narrowing still works because MatchingCodes handles the pattern at call site.
+ */
+export type PatternInput<TCodes extends CodesRecord>
+  = | CodeOf<TCodes>
+    | `${string}.*`
+
+/**
+ * Pattern type for match() handlers - uses enumerated wildcards for proper
+ * type narrowing in handler callbacks. Wildcards will appear in autocomplete.
  */
 export type Pattern<TCodes extends CodesRecord>
   = | CodeOf<TCodes>
-    | `${DotPrefixes<CodeOf<TCodes>>}.*`
+    | ValidWildcards<TCodes>
 
 /**
  * Given a pattern P, resolve which codes from TCodes it matches.

@@ -1,6 +1,6 @@
 import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
-import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, Pattern } from './types'
+import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, Pattern, PatternInput } from './types'
 
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
@@ -31,7 +31,7 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
  * Client match handlers object type.
  */
 export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
-  [P in Pattern<TCodes>]?: (e: MatchingClientAppError<TCodes, P>) => R;
+  [K in Pattern<TCodes>]?: (e: MatchingClientAppError<TCodes, K>) => R
 } & {
   default?: (e: ClientAppError<CodeOf<TCodes>>) => R
 }
@@ -52,7 +52,7 @@ export interface ErrorClient<TCodes extends CodesRecord> {
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
    */
-  is: <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
+  is: <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
     err: unknown,
     pattern: P,
   ) => err is MatchingClientAppError<TCodes, P>
@@ -89,7 +89,7 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
   }
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
-  const is = <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
+  const is = <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
     err: unknown,
     pattern: P,
   ): err is MatchingClientAppError<TCodes, P> => {

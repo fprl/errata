@@ -38,12 +38,18 @@ export type CodesOf<T extends { _codesBrand?: any }> = NonNullable<T['_codesBran
 
 // ─── Pattern Matching Types ───────────────────────────────────────────────────
 
+type DotPrefixes<S extends string> = S extends `${infer Head}.${infer Tail}`
+  ? Head | `${Head}.${DotPrefixes<Tail>}`
+  : never
+
 /**
  * A pattern is either an exact code or a wildcard pattern ending with `.*`.
  * Wildcard patterns match any code starting with the prefix.
  * Examples: `'auth.invalid_token'` (exact), `'auth.*'` (wildcard)
  */
-export type Pattern<TCodes extends CodesRecord> = CodeOf<TCodes> | `${string}.*`
+export type Pattern<TCodes extends CodesRecord>
+  = | CodeOf<TCodes>
+    | `${DotPrefixes<CodeOf<TCodes>>}.*`
 
 /**
  * Given a pattern P, resolve which codes from TCodes it matches.

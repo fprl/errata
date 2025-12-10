@@ -1,5 +1,5 @@
 import type { SerializedError } from './app-error'
-import type { CodeOf, CodesRecord, DetailsOf, LogLevel, MatchingAppError, MatchingCodes, Pattern } from './types'
+import type { CodeOf, CodesRecord, DetailsOf, LogLevel, MatchingAppError, Pattern } from './types'
 
 import { AppError, isSerializedError, resolveMessage } from './app-error'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
@@ -12,25 +12,12 @@ type AppErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = AppErro
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 
 /**
- * Type for the error passed to a match handler, narrowed based on the pattern.
- * Uses a distributive conditional to properly correlate code with details.
- */
-type MatchHandlerError<
-  TCodes extends CodesRecord,
-  P extends string,
-> = MatchingCodes<TCodes, P> extends infer C
-  ? C extends CodeOf<TCodes>
-    ? AppError<C, DetailsOf<TCodes, C>>
-    : never
-  : never
-
-/**
  * Match handlers object type.
  * Keys are exact codes or wildcard patterns.
  * Values are callbacks receiving the narrowed error type.
  */
 export type MatchHandlers<TCodes extends CodesRecord, R> = {
-  [P in Pattern<TCodes>]?: (e: MatchHandlerError<TCodes, P>) => R;
+  [P in Pattern<TCodes>]?: (e: MatchingAppError<TCodes, P>) => R;
 } & {
   default?: (e: AppErrorFor<TCodes, CodeOf<TCodes>>) => R
 }

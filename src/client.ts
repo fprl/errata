@@ -1,6 +1,6 @@
 import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
-import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, MatchingCodes, Pattern } from './types'
+import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, Pattern } from './types'
 
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
@@ -28,23 +28,10 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 
 /**
- * Type for the error passed to a match handler, narrowed based on the pattern.
- * Uses a distributive conditional to properly correlate code with details.
- */
-type ClientMatchHandlerError<
-  TCodes extends CodesRecord,
-  P extends string,
-> = MatchingCodes<TCodes, P> extends infer C
-  ? C extends CodeOf<TCodes>
-    ? ClientAppError<C, DetailsOf<TCodes, C>>
-    : never
-  : never
-
-/**
  * Client match handlers object type.
  */
 export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
-  [P in Pattern<TCodes>]?: (e: ClientMatchHandlerError<TCodes, P>) => R;
+  [P in Pattern<TCodes>]?: (e: MatchingClientAppError<TCodes, P>) => R;
 } & {
   default?: (e: ClientAppError<CodeOf<TCodes>>) => R
 }

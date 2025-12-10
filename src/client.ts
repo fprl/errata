@@ -1,6 +1,10 @@
 import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
-import type { CodeOf, CodesRecord, DetailsOf } from './types'
+import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, MatchingCodes, Pattern } from './types'
+
+import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
+
+// ─── Client Types ─────────────────────────────────────────────────────────────
 
 export class ClientAppError<C extends string = string, D = unknown> extends Error {
   readonly name = 'AppError'
@@ -21,6 +25,30 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
   }
 }
 
+// ─── Match Handler Types ──────────────────────────────────────────────────────
+
+/**
+ * Type for the error passed to a match handler, narrowed based on the pattern.
+ * Uses a distributive conditional to properly correlate code with details.
+ */
+type ClientMatchHandlerError<
+  TCodes extends CodesRecord,
+  P extends string,
+> = MatchingCodes<TCodes, P> extends infer C
+  ? C extends CodeOf<TCodes>
+    ? ClientAppError<C, DetailsOf<TCodes, C>>
+    : never
+  : never
+
+/**
+ * Client match handlers object type.
+ */
+export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
+  [P in Pattern<TCodes>]?: (e: ClientMatchHandlerError<TCodes, P>) => R;
+} & {
+  default?: (e: ClientAppError<CodeOf<TCodes>>) => R
+}
+
 /**
  * Client-side surface derived from a server `errors` type.
  */
@@ -33,18 +61,22 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   deserialize: <C extends CodeOf<TCodes>>(
     json: SerializedError<C, DetailsOf<TCodes, C>>,
   ) => ClientAppError<C, DetailsOf<TCodes, C>>
-  /** Type-safe code check; supports single code or list. */
-  is: <C extends CodeOf<TCodes>>(
+  /**
+   * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
+   * and arrays of patterns. Returns a type guard narrowing the error type.
+   */
+  is: <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
     err: unknown,
-    code: C | readonly C[],
-  ) => err is ClientAppError<C, DetailsOf<TCodes, C>>
-  /** Code-based matcher with required default. */
+    pattern: P,
+  ) => err is MatchingClientAppError<TCodes, P>
+  /**
+   * Pattern matcher over codes with priority: exact match > longest wildcard > default.
+   * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
+   */
   match: <R>(
     err: unknown,
-    cases: {
-      [C in CodeOf<TCodes>]?: (e: ClientAppError<C, DetailsOf<TCodes, C>>) => R;
-    } & { default: (e: ClientAppError<CodeOf<TCodes>>) => R },
-  ) => R
+    handlers: ClientMatchHandlers<TCodes, R>,
+  ) => R | undefined
   /** Check whether an error carries a given tag. */
   hasTag: (err: unknown, tag: string) => boolean
 }
@@ -69,28 +101,34 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
     return new ClientAppError<C, DetailsOf<TCodes, C>>(json)
   }
 
-  /** Type-safe code check; supports single code or list. */
-  const is = <C extends Code>(
+  /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
+  const is = <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
     err: unknown,
-    code: C | readonly C[],
-  ): err is ClientAppError<C, DetailsOf<TCodes, C>> => {
+    pattern: P,
+  ): err is MatchingClientAppError<TCodes, P> => {
     if (!(err instanceof ClientAppError))
       return false
-    const codesToCheck = Array.isArray(code) ? code : [code]
-    return codesToCheck.includes(err.code as C)
+
+    const patterns = Array.isArray(pattern) ? pattern : [pattern]
+    return patterns.some(p => matchesPattern(err.code, p as string))
   }
 
-  /** Code-based matcher with required default. */
+  /** Pattern matcher with priority: exact match > longest wildcard > default. */
   const match = <R>(
     err: unknown,
-    cases: {
-      [C in Code]?: (e: ClientAppError<C, DetailsOf<TCodes, C>>) => R;
-    } & { default: (e: ClientAppError<Code>) => R },
-  ): R => {
-    if (!(err instanceof ClientAppError))
-      return cases.default(err as any)
-    const handler = (cases as any)[err.code] ?? cases.default
-    return handler(err)
+    handlers: ClientMatchHandlers<TCodes, R>,
+  ): R | undefined => {
+    if (!(err instanceof ClientAppError)) {
+      return (handlers as any).default?.(err)
+    }
+
+    const handlerKeys = Object.keys(handlers).filter(k => k !== 'default')
+    const matchedPattern = findBestMatchingPattern(err.code, handlerKeys)
+    const handler = matchedPattern
+      ? (handlers as any)[matchedPattern]
+      : (handlers as any).default
+
+    return handler ? handler(err) : undefined
   }
 
   /** Check whether an error carries a given tag. */
@@ -102,13 +140,9 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
 
   return {
     AppError: ClientAppError,
-    /** Turn a serialized payload into a client error instance. */
     deserialize,
-    /** Type-safe code check; supports single code or list. */
     is,
-    /** Code-based matcher with required default. */
     match,
-    /** Check whether an error carries a given tag. */
     hasTag,
   }
 }

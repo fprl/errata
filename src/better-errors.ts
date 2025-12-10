@@ -1,12 +1,39 @@
 import type { SerializedError } from './app-error'
-import type { CodeOf, CodesRecord, DetailsOf, LogLevel } from './types'
+import type { CodeOf, CodesRecord, DetailsOf, LogLevel, MatchingAppError, MatchingCodes, Pattern } from './types'
 
 import { AppError, isSerializedError, resolveMessage } from './app-error'
+import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
 type AppErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = AppError<
   C,
   DetailsOf<TCodes, C>
 >
+
+// ─── Match Handler Types ──────────────────────────────────────────────────────
+
+/**
+ * Type for the error passed to a match handler, narrowed based on the pattern.
+ * Uses a distributive conditional to properly correlate code with details.
+ */
+type MatchHandlerError<
+  TCodes extends CodesRecord,
+  P extends string,
+> = MatchingCodes<TCodes, P> extends infer C
+  ? C extends CodeOf<TCodes>
+    ? AppError<C, DetailsOf<TCodes, C>>
+    : never
+  : never
+
+/**
+ * Match handlers object type.
+ * Keys are exact codes or wildcard patterns.
+ * Values are callbacks receiving the narrowed error type.
+ */
+export type MatchHandlers<TCodes extends CodesRecord, R> = {
+  [P in Pattern<TCodes>]?: (e: MatchHandlerError<TCodes, P>) => R;
+} & {
+  default?: (e: AppErrorFor<TCodes, CodeOf<TCodes>>) => R
+}
 
 export interface BetterErrorsPlugin {
   onCreate?: (err: AppError<any>) => void | Promise<void>
@@ -61,18 +88,22 @@ export interface BetterErrorsInstance<TCodes extends CodesRecord> {
   ) => Promise<
     [data: T, error: null] | [data: null, error: AppErrorFor<TCodes, CodeOf<TCodes>>]
   >
-  /** Type-safe code check; supports single code or list. */
-  is: <C extends CodeOf<TCodes>>(
+  /**
+   * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
+   * and arrays of patterns. Returns a type guard narrowing the error type.
+   */
+  is: <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
     err: unknown,
-    code: C | readonly C[],
-  ) => err is AppErrorFor<TCodes, C>
-  /** Exhaustive-ish matcher over codes, with a required default. */
+    pattern: P,
+  ) => err is MatchingAppError<TCodes, P>
+  /**
+   * Pattern matcher over codes with priority: exact match > longest wildcard > default.
+   * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
+   */
   match: <R>(
     err: unknown,
-    cases: {
-      [C in CodeOf<TCodes>]?: (e: AppErrorFor<TCodes, C>) => R;
-    } & { default: (e: AppErrorFor<TCodes, CodeOf<TCodes>>) => R },
-  ) => R
+    handlers: MatchHandlers<TCodes, R>,
+  ) => R | undefined
   /** Check whether an error carries a given tag. */
   hasTag: (err: unknown, tag: string) => boolean
   /** Serialize an AppError for transport (server → client). */
@@ -243,29 +274,32 @@ export function betterErrors<TCodes extends CodesRecord>({
     }
   }
 
-  /** Type-safe code check; supports single code or list. */
-  const is = <C extends CodeOf<TCodes>>(
+  /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
+  const is = <P extends Pattern<TCodes> | readonly Pattern<TCodes>[]>(
     err: unknown,
-    codeOrCodes: C | readonly C[],
-  ): err is AppErrorFor<TCodes, C> => {
+    pattern: P,
+  ): err is MatchingAppError<TCodes, P> => {
     if (!(err instanceof AppError))
       return false
-    const codesToCheck = Array.isArray(codeOrCodes)
-      ? codeOrCodes
-      : [codeOrCodes]
-    return codesToCheck.includes(err.code as C)
+
+    const patterns = Array.isArray(pattern) ? pattern : [pattern]
+    return patterns.some(p => matchesPattern(err.code, p as string))
   }
 
-  /** Code-based matcher with required default. */
+  /** Pattern matcher with priority: exact match > longest wildcard > default. */
   const match = <R>(
     err: unknown,
-    cases: {
-      [C in CodeOf<TCodes>]?: (e: AppErrorFor<TCodes, C>) => R;
-    } & { default: (e: AppErrorFor<TCodes, CodeOf<TCodes>>) => R },
-  ): R => {
+    handlers: MatchHandlers<TCodes, R>,
+  ): R | undefined => {
     const appErr = err instanceof AppError ? err : ensure(err)
-    const handler = (cases as any)[appErr.code] ?? cases.default
-    return handler(appErr)
+    const handlerKeys = Object.keys(handlers).filter(k => k !== 'default')
+
+    const matchedPattern = findBestMatchingPattern(appErr.code, handlerKeys)
+    const handler = matchedPattern
+      ? (handlers as any)[matchedPattern]
+      : (handlers as any).default
+
+    return handler ? handler(appErr) : undefined
   }
 
   /** Check whether an error carries a given tag. */

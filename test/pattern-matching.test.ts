@@ -361,10 +361,11 @@ describe('pattern Matching: Type Inference', () => {
   it('matchingCodes extracts correct codes for wildcard pattern', () => {
     const err: unknown = errors.create('auth.login_failed', { attempts: 3 })
 
-    if (errors.is(err, 'auth.login.*')) {
-      // Should compile: code is one of auth.login codes
-      const code: 'auth.login_failed' | 'auth.login.rate_limited' = err.code
-      expect(code).toBe('auth.login_failed')
+    if (errors.is(err, 'auth.*')) {
+      if (err.code === 'auth.login_failed') {
+        const attempts: number = err.details.attempts
+        expect(attempts).toBe(3)
+      }
     }
   })
 
@@ -375,13 +376,13 @@ describe('pattern Matching: Type Inference', () => {
         return `Token error: ${err.details.reason}`
       }
 
-      if (errors.is(err, 'auth.login.*')) {
-        // TypeScript knows err.code is one of the login codes
+      if (errors.is(err, 'auth.*')) {
+        // TypeScript knows err.code is one of the auth codes
         if (err.code === 'auth.login_failed') {
           // Further narrowing works
-          return `Login failed: ${(err.details as { attempts: number }).attempts} attempts`
+          return `Login failed: ${err.details.attempts} attempts`
         }
-        return `Login issue: ${err.code}`
+        return `Auth issue: ${err.code}`
       }
 
       if (errors.is(err, 'billing.*')) {

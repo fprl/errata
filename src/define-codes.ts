@@ -5,6 +5,23 @@ type CodeWithoutDetails<TDetails> = Omit<CodeConfig<TDetails>, 'details'> & {
   details?: never
 }
 
+type NestedKeys<T> = {
+  [K in keyof T]: T[K] extends Record<string, CodeConfig<any>>
+    ? `${K & string}.${keyof T[K] & string}`
+    : never
+}[keyof T]
+
+type NestedValue<T, P extends string>
+  = P extends `${infer K}.${infer SubK}`
+    ? K extends keyof T
+      ? T[K] extends Record<string, any>
+        ? SubK extends keyof T[K]
+          ? T[K][SubK]
+          : never
+        : never
+      : never
+    : never
+
 type FlattenCodes<
   TInput extends Record<string, CodeConfig<any> | Record<string, CodeConfig<any>>>,
 > = {
@@ -13,11 +30,7 @@ type FlattenCodes<
     CodeConfig<any>
   >;
 } & {
-  [K in keyof TInput & string as TInput[K] extends Record<string, CodeConfig<any>>
-    ? `${K}.${keyof TInput[K] & string}`
-    : never]: TInput[K] extends Record<string, CodeConfig<any>>
-    ? TInput[K][keyof TInput[K] & string]
-    : never;
+  [P in NestedKeys<TInput>]: NestedValue<TInput, P>
 }
 
 type FlattenedCodes<

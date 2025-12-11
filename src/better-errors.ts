@@ -1,8 +1,8 @@
 import type { SerializedError } from './app-error'
 import type {
   CodeOf,
+  CodesForTag,
   CodesRecord,
-  CodesWithTag,
   DetailsArg,
   DetailsOf,
   LogLevel,
@@ -27,11 +27,7 @@ type DetailsParam<TCodes extends CodesRecord, C extends CodeOf<TCodes>>
 type TaggedAppError<
   TCodes extends CodesRecord,
   TTag extends string,
-> = CodesWithTag<TCodes, TTag> extends infer C
-  ? C extends CodeOf<TCodes>
-    ? AppErrorFor<TCodes, C>
-    : never
-  : never
+> = MatchingAppError<TCodes, Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>>
 
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 

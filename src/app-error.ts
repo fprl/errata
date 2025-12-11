@@ -13,7 +13,7 @@ export interface SerializedError<C extends string = string, D = unknown> {
   status?: number
   retryable?: boolean
   logLevel?: LogLevel
-  tags?: string[]
+  tags?: readonly string[]
   details?: D
 }
 
@@ -26,7 +26,7 @@ export class AppError<C extends string = string, D = unknown> extends Error {
   readonly expose: boolean
   readonly retryable: boolean
   readonly logLevel: LogLevel
-  readonly tags: string[]
+  readonly tags: readonly string[]
   readonly details: D
   readonly cause?: unknown
 
@@ -39,7 +39,7 @@ export class AppError<C extends string = string, D = unknown> extends Error {
     expose: boolean
     retryable: boolean
     logLevel: LogLevel
-    tags: string[]
+    tags: readonly string[]
     details: D
     cause?: unknown
     captureStack?: boolean

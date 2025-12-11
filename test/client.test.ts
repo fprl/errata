@@ -234,4 +234,80 @@ describe('client hasTag()', () => {
     expect(client.hasTag(new Error('boom'), 'auth')).toBe(false)
     expect(client.hasTag(null, 'auth')).toBe(false)
   })
+
+  it('narrows codes by tag for core errors', () => {
+    const err = client.deserialize(
+      errors.serialize(errors.create('core.config_missing', { key: 'DB_URL' })),
+    )
+
+    if (client.hasTag(err, 'core')) {
+      expectTypeOf(err.code).toEqualTypeOf<'core.internal_error' | 'core.config_missing'>()
+      if (err.code === 'core.config_missing') {
+        expect(err.details?.key).toBe('DB_URL')
+      }
+      else {
+        expect(err.code).toBe('core.internal_error')
+      }
+    }
+  })
+
+  it('narrows codes by tag for auth errors', () => {
+    const err = client.deserialize(
+      errors.serialize(errors.create('auth.invalid_token', { reason: 'revoked' })),
+    )
+
+    if (client.hasTag(err, 'auth')) {
+      expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token' | 'auth.user_not_found'>()
+      if (err.code === 'auth.invalid_token') {
+        expect(err.details?.reason).toBe('revoked')
+      }
+      else {
+        expect(err.code).toBe('auth.user_not_found')
+      }
+    }
+  })
+})
+
+describe('client deserialize (robust)', () => {
+  const client = createErrorClient<typeof errors>()
+
+  it('deserializes a valid payload', () => {
+    const payload = errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' }))
+    const err = client.deserialize(payload)
+
+    expect(err).toBeInstanceOf(client.AppError)
+    expect(err.code).toBe('auth.invalid_token')
+  })
+
+  it('allows extra fields on payload', () => {
+    const err = client.deserialize({ code: 'foo', extra: 123, message: 'x' })
+    expect(err).toBeInstanceOf(client.AppError)
+    expect(err.code).toBe('foo')
+  })
+
+  it('returns deserialization_failed when code is missing', () => {
+    const err = client.deserialize({ message: 'oops' })
+    expect(err.code).toBe('be.deserialization_failed')
+    expect(err.details?.raw).toEqual({ message: 'oops' })
+  })
+
+  it('returns unknown_error for garbage input', () => {
+    const err1 = client.deserialize(null)
+    const err2 = client.deserialize('error string')
+
+    expect(err1.code).toBe('be.unknown_error')
+    expect(err2.code).toBe('be.unknown_error')
+    expect(err2.details?.raw).toBe('error string')
+  })
+})
+
+describe('client safe()', () => {
+  const client = createErrorClient<typeof errors>()
+
+  it('wraps network TypeError as network_error', async () => {
+    const [data, err] = await client.safe(Promise.reject(new TypeError('dns')))
+
+    expect(data).toBeNull()
+    expect(err?.code).toBe('be.network_error')
+  })
 })

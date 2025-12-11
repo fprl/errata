@@ -37,11 +37,7 @@ type OptionalDetails<T> = StripPropsMarker<RawDetails<T>>
 
 export type DetailsPayload<T> = StripPropsMarker<T>
 
-export type TagsOfConfig<TConfig> = TConfig extends { tags?: readonly (infer TTag)[] }
-  ? TTag extends string
-    ? string extends TTag ? never : TTag
-    : never
-  : never
+export type TagsOfConfig<TConfig> = NonNullable<TConfig extends { tags?: readonly (infer T)[] } ? T : never>
 
 export type CodesWithTag<
   TCodes extends CodesRecord,
@@ -49,6 +45,11 @@ export type CodesWithTag<
 > = {
   [C in CodeOf<TCodes>]: TTag extends TagsOfConfig<TCodes[C]> ? C : never
 }[CodeOf<TCodes>]
+
+export type CodesForTag<
+  TCodes extends CodesRecord,
+  TTag extends string,
+> = CodesWithTag<TCodes, TTag> extends never ? CodeOf<TCodes> : CodesWithTag<TCodes, TTag>
 
 /** Resolves the error message for a code, optionally using its typed details. */
 export type MessageResolver<TDetails>
@@ -69,7 +70,7 @@ export interface CodeConfig<TDetails = unknown> {
   /** Suggested log severity; core does not log. */
   logLevel?: LogLevel
   /** Free-form labels for grouping/matching (e.g. `auth`, `billing`, `stripe`). */
-  tags?: string[]
+  tags?: readonly string[]
 }
 
 export type CodesRecord = Record<string, CodeConfig<any>>

@@ -2,9 +2,8 @@ import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
 import type {
   CodeOf,
+  CodesForTag,
   CodesRecord,
-  CodesWithTag,
-  DetailsOf,
   MatchingClientAppError,
   Pattern,
   PatternInput,
@@ -14,12 +13,15 @@ import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matchin
 
 // ─── Client Types ─────────────────────────────────────────────────────────────
 
+type InternalClientCode = 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
+type ClientCode<TCodes extends CodesRecord> = CodeOf<TCodes> | InternalClientCode
+
 export class ClientAppError<C extends string = string, D = unknown> extends Error {
   readonly name = 'AppError'
   readonly code: C
   readonly status?: number
   readonly retryable?: boolean
-  readonly tags?: string[]
+  readonly tags?: readonly string[]
   readonly details?: D
 
   constructor(payload: SerializedError<C, D>) {
@@ -30,6 +32,9 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
     this.retryable = payload.retryable
     this.tags = payload.tags
     this.details = payload.details
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, new.target)
+    }
   }
 }
 
@@ -41,7 +46,7 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
 export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
   [K in Pattern<TCodes>]?: (e: MatchingClientAppError<TCodes, K>) => R
 } & {
-  default?: (e: ClientAppError<CodeOf<TCodes>>) => R
+  default?: (e: ClientAppError<ClientCode<TCodes>>) => R
 }
 
 /**
@@ -50,12 +55,12 @@ export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
 export interface ErrorClient<TCodes extends CodesRecord> {
   /** Client-side AppError constructor for instanceof checks. */
   AppError: new (
-    payload: SerializedError<CodeOf<TCodes>, any>
-  ) => ClientAppError<CodeOf<TCodes>, any>
+    payload: SerializedError<ClientCode<TCodes>, any>
+  ) => ClientAppError<ClientCode<TCodes>, any>
   /** Turn a serialized payload into a client error instance. */
-  deserialize: <C extends CodeOf<TCodes>>(
-    json: SerializedError<C, DetailsOf<TCodes, C>>,
-  ) => ClientAppError<C, DetailsOf<TCodes, C>>
+  deserialize: (
+    payload: unknown,
+  ) => ClientAppError<ClientCode<TCodes>, any>
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
@@ -73,7 +78,19 @@ export interface ErrorClient<TCodes extends CodesRecord> {
     handlers: ClientMatchHandlers<TCodes, R>,
   ) => R | undefined
   /** Check whether an error carries a given tag. */
-  hasTag: (err: unknown, tag: string) => boolean
+  hasTag: <TTag extends string>(
+    err: unknown,
+    tag: TTag,
+  ) => err is MatchingClientAppError<
+    TCodes,
+    Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>
+  >
+  /** Promise helper that returns a tuple without try/catch. */
+  safe: <T>(
+    promise: Promise<T>,
+  ) => Promise<
+    [data: T, error: null] | [data: null, error: ClientAppError<ClientCode<TCodes>, any>]
+  >
 }
 
 type InferCodes<T> = T extends BetterErrorsInstance<infer TCodes>
@@ -88,18 +105,37 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
 > {
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
-  type TaggedClientAppError<TTag extends string>
-    = CodesWithTag<TCodes, TTag> extends infer C
-      ? C extends Code
-        ? MatchingClientAppError<TCodes, C>
-        : never
-      : never
+  type ClientCode = Code | 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
+  type TaggedClientAppError<TTag extends string> = MatchingClientAppError<
+    TCodes,
+    Extract<CodesForTag<TCodes, TTag>, Code>
+  >
 
-  /** Turn a serialized payload into a client error instance. */
-  const deserialize = <C extends Code>(
-    json: SerializedError<C, DetailsOf<TCodes, C>>,
-  ): ClientAppError<C, DetailsOf<TCodes, C>> => {
-    return new ClientAppError<C, DetailsOf<TCodes, C>>(json)
+  const internal = (
+    code: Extract<ClientCode, `be.${string}`>,
+    raw: unknown,
+  ): ClientAppError<ClientCode, { raw: unknown }> => {
+    return new ClientAppError<ClientCode, { raw: unknown }>({
+      __brand: 'better-errors',
+      code,
+      message: code,
+      details: { raw },
+      tags: [],
+    })
+  }
+
+  /** Turn an unknown payload into a client error instance with defensive checks. */
+  const deserialize = (
+    payload: unknown,
+  ): ClientAppError<ClientCode, any> => {
+    if (payload && typeof payload === 'object') {
+      const withCode = payload as { code?: unknown }
+      if (typeof withCode.code === 'string') {
+        return new ClientAppError(withCode as SerializedError<ClientCode, any>)
+      }
+      return internal('be.deserialization_failed', payload)
+    }
+    return internal('be.unknown_error', payload)
   }
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
@@ -142,11 +178,39 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
     return (err.tags ?? []).includes(tag)
   }
 
+  /** Promise helper returning a tuple without try/catch at call sites. */
+  const safe = async <T>(
+    promise: Promise<T>,
+  ): Promise<
+    [data: T, error: null] | [data: null, error: ClientAppError<ClientCode, any>]
+  > => {
+    try {
+      const data = await promise
+      return [data, null]
+    }
+    catch (err) {
+      if (err instanceof ClientAppError) {
+        return [null, err]
+      }
+
+      if (err instanceof TypeError) {
+        return [null, internal('be.network_error', err)]
+      }
+
+      if (err && typeof err === 'object') {
+        return [null, deserialize(err)]
+      }
+
+      return [null, deserialize(err)]
+    }
+  }
+
   return {
     AppError: ClientAppError,
     deserialize,
     is,
     match,
     hasTag,
+    safe,
   }
 }

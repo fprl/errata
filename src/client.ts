@@ -1,6 +1,14 @@
 import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
-import type { CodeOf, CodesRecord, DetailsOf, MatchingClientAppError, Pattern, PatternInput } from './types'
+import type {
+  CodeOf,
+  CodesRecord,
+  CodesWithTag,
+  DetailsOf,
+  MatchingClientAppError,
+  Pattern,
+  PatternInput,
+} from './types'
 
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
@@ -80,6 +88,12 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
 > {
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
+  type TaggedClientAppError<TTag extends string>
+    = CodesWithTag<TCodes, TTag> extends infer C
+      ? C extends Code
+        ? MatchingClientAppError<TCodes, C>
+        : never
+      : never
 
   /** Turn a serialized payload into a client error instance. */
   const deserialize = <C extends Code>(
@@ -119,7 +133,10 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
   }
 
   /** Check whether an error carries a given tag. */
-  const hasTag = (err: unknown, tag: string): boolean => {
+  const hasTag = <TTag extends string>(
+    err: unknown,
+    tag: TTag,
+  ): err is TaggedClientAppError<TTag> => {
     if (!(err instanceof ClientAppError))
       return false
     return (err.tags ?? []).includes(tag)

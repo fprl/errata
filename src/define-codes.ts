@@ -1,9 +1,4 @@
-import type { CodeConfig, CodesRecord } from './types'
-
-type CodeWithoutDetails<TDetails> = Omit<CodeConfig<TDetails>, 'details'> & {
-  /** Prevent passing runtime details; typing only. */
-  details?: never
-}
+import type { CodeConfig, CodesRecord, PropsStrict, PropsWithDefault } from './types'
 
 type NestedKeys<T> = {
   [K in keyof T]: T[K] extends Record<string, CodeConfig<any>>
@@ -65,16 +60,25 @@ function flattenCodes(input: Record<string, any>, prefix = ''): CodesRecord {
  * Returns a flattened, typed map of codes to config.
  */
 export function defineCodes<
-  TInput extends Record<string, CodeConfig<any> | Record<string, CodeConfig<any>>>,
+  const TInput extends Record<string, CodeConfig<any> | Record<string, CodeConfig<any>>>,
 >(input: TInput): FlattenedCodes<TInput> {
   return flattenCodes(input) as FlattenedCodes<TInput>
 }
 
 /**
- * Type-only helper to declare the `details` shape without runtime noise.
+ * Type-only helper to declare the `details` shape while optionally providing defaults.
+ * Returns the defaults at runtime (or undefined), but tells TypeScript the details shape.
  */
-export function code<TDetails = void>(
-  config: CodeWithoutDetails<TDetails>,
-): CodeConfig<TDetails> {
-  return config as CodeConfig<TDetails>
+export function props<T>(defaults: T): PropsWithDefault<T>
+export function props<T>(): PropsStrict<T>
+export function props<T>(defaults?: T): T {
+  return defaults as T
+}
+
+/**
+ * Identity helper that preserves literal inference for code configs.
+ * Requires `details` to be present (use plain objects when no details are needed).
+ */
+export function code<C extends CodeConfig<any> & { details: unknown }>(config: C): C {
+  return config
 }

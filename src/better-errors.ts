@@ -1,5 +1,15 @@
 import type { SerializedError } from './app-error'
-import type { CodeOf, CodesRecord, DetailsOf, LogLevel, MatchingAppError, Pattern, PatternInput } from './types'
+import type {
+  CodeOf,
+  CodesRecord,
+  CodesWithTag,
+  DetailsArg,
+  DetailsOf,
+  LogLevel,
+  MatchingAppError,
+  Pattern,
+  PatternInput,
+} from './types'
 
 import { AppError, isSerializedError, resolveMessage } from './app-error'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
@@ -8,6 +18,20 @@ type AppErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = AppErro
   C,
   DetailsOf<TCodes, C>
 >
+
+type DetailsParam<TCodes extends CodesRecord, C extends CodeOf<TCodes>>
+  = undefined extends DetailsArg<TCodes, C>
+    ? [details?: DetailsArg<TCodes, C>]
+    : [details: DetailsArg<TCodes, C>]
+
+type TaggedAppError<
+  TCodes extends CodesRecord,
+  TTag extends string,
+> = CodesWithTag<TCodes, TTag> extends infer C
+  ? C extends CodeOf<TCodes>
+    ? AppErrorFor<TCodes, C>
+    : never
+  : never
 
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 
@@ -57,12 +81,12 @@ export interface BetterErrorsInstance<TCodes extends CodesRecord> {
   /** Create an AppError for a known code, with typed details. */
   create: <C extends CodeOf<TCodes>>(
     code: C,
-    details?: DetailsOf<TCodes, C>,
+    ...details: DetailsParam<TCodes, C>
   ) => AppErrorFor<TCodes, C>
   /** Create and throw an AppError for a known code. */
   throw: <C extends CodeOf<TCodes>>(
     code: C,
-    details?: DetailsOf<TCodes, C>,
+    ...details: DetailsParam<TCodes, C>
   ) => never
   /** Normalize unknown errors into AppError, using an optional fallback code. */
   ensure: (
@@ -92,7 +116,10 @@ export interface BetterErrorsInstance<TCodes extends CodesRecord> {
     handlers: MatchHandlers<TCodes, R>,
   ) => R | undefined
   /** Check whether an error carries a given tag. */
-  hasTag: (err: unknown, tag: string) => boolean
+  hasTag: <TTag extends string>(
+    err: unknown,
+    tag: TTag,
+  ) => err is TaggedAppError<TCodes, TTag>
   /** Serialize an AppError for transport (server → client). */
   serialize: <C extends CodeOf<TCodes>>(
     err: AppErrorFor<TCodes, C>,
@@ -134,24 +161,28 @@ export function betterErrors<TCodes extends CodesRecord>({
   /** Create an AppError for a known code, with typed details. */
   const create = <C extends CodeOf<TCodes>>(
     code: C,
-    details?: DetailsOf<TCodes, C>,
+    ...[details]: DetailsParam<TCodes, C>
   ): AppErrorFor<TCodes, C> => {
     const config = codes[code]
     if (!config) {
       throw new Error(`Unknown error code: ${String(code)}`)
     }
 
+    const resolvedDetails = (
+      details === undefined ? config.details : details
+    ) as DetailsOf<TCodes, C>
+
     const error = new AppError<C, DetailsOf<TCodes, C>>({
       app,
       env,
       code,
-      message: resolveMessage(config.message, details as DetailsOf<TCodes, C>),
+      message: resolveMessage(config.message, resolvedDetails),
       status: config.status ?? defaultStatus,
       expose: config.expose ?? defaultExpose,
       retryable: config.retryable ?? defaultRetryable,
       logLevel: config.logLevel ?? defaultLogLevel,
       tags: config.tags ?? [],
-      details: details as DetailsOf<TCodes, C>,
+      details: resolvedDetails,
       captureStack,
     })
 
@@ -165,9 +196,9 @@ export function betterErrors<TCodes extends CodesRecord>({
   /** Create and throw an AppError for a known code. */
   const throwFn = <C extends CodeOf<TCodes>>(
     code: C,
-    details?: DetailsOf<TCodes, C>,
+    ...details: DetailsParam<TCodes, C>
   ): never => {
-    const err = create(code, details)
+    const err = create(code, ...(details as DetailsParam<TCodes, C>))
     for (const plugin of plugins) {
       plugin.onThrow?.(err)
     }
@@ -290,7 +321,10 @@ export function betterErrors<TCodes extends CodesRecord>({
   }
 
   /** Check whether an error carries a given tag. */
-  const hasTag = (err: unknown, tag: string): boolean => {
+  const hasTag = <TTag extends string>(
+    err: unknown,
+    tag: TTag,
+  ): err is TaggedAppError<TCodes, TTag> => {
     if (!(err instanceof AppError))
       return false
     return (err.tags ?? []).includes(tag)

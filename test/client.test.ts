@@ -68,7 +68,7 @@ describe('client pattern matching: is()', () => {
       )
 
       if (client.is(err, 'auth.*')) {
-        expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token'>()
+        expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token' | 'auth.user_not_found'>()
       }
     })
   })
@@ -96,7 +96,11 @@ describe('client pattern matching: is()', () => {
       )
 
       if (client.is(err, ['auth.*', 'billing.payment_failed'])) {
-        expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token' | 'billing.payment_failed'>()
+        expectTypeOf(err.code).toEqualTypeOf<
+          | 'auth.invalid_token'
+          | 'auth.user_not_found'
+          | 'billing.payment_failed'
+        >()
       }
     })
   })
@@ -136,7 +140,7 @@ describe('client pattern matching: match()', () => {
 
       client.match(err, {
         'auth.*': (e) => {
-          expectTypeOf(e.code).toEqualTypeOf<'auth.invalid_token'>()
+          expectTypeOf(e.code).toEqualTypeOf<'auth.invalid_token' | 'auth.user_not_found'>()
           return null
         },
         'default': () => null,

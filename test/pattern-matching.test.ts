@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { betterErrors, code, defineCodes } from '../src'
+import { betterErrors, code, defineCodes, props } from '../src'
 
 /**
  * Extended codes for pattern matching tests.
@@ -18,37 +18,43 @@ const codes = defineCodes({
     tags: ['core'],
   },
   'auth': {
-    invalid_token: code<{ reason: 'expired' | 'revoked' }>({
+    invalid_token: code({
       status: 401,
       message: 'Invalid token',
       tags: ['auth'],
+      details: props<{ reason: 'expired' | 'revoked' }>(),
     }),
-    missing_credentials: code<{ field: string }>({
+    missing_credentials: code({
       status: 401,
       message: 'Missing credentials',
       tags: ['auth'],
+      details: props<{ field: string }>(),
     }),
-    login_failed: code<{ attempts: number }>({
+    login_failed: code({
       status: 401,
       message: 'Login failed',
       tags: ['auth', 'login'],
+      details: props<{ attempts: number }>(),
     }),
-    rate_limited: code<{ retryAfter: number }>({
+    rate_limited: code({
       status: 429,
       message: 'Rate limited',
       tags: ['auth'],
+      details: props<{ retryAfter: number }>(),
     }),
   },
   'billing': {
-    payment_failed: code<{ provider: 'stripe' | 'adyen', amount: number }>({
+    payment_failed: code({
       status: 402,
       message: ({ details }) => `Payment failed for ${details.provider}`,
       tags: ['billing'],
+      details: props<{ provider: 'stripe' | 'adyen', amount: number }>(),
     }),
-    subscription_expired: code<{ planId: string }>({
+    subscription_expired: code({
       status: 402,
       message: 'Subscription expired',
       tags: ['billing'],
+      details: props<{ planId: string }>(),
     }),
   },
 } as const)

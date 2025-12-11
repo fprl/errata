@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { AppError, betterErrors, defineCodes } from '../src'
+import { AppError, betterErrors, code, defineCodes, props } from '../src'
 import { errors } from './fixtures'
 
 describe('betterErrors basics', () => {
@@ -16,7 +16,7 @@ describe('betterErrors basics', () => {
     expect(error.message).toBe('Payment failed for stripe (42)')
     expect(error.status).toBe(402)
     expect(error.retryable).toBe(true)
-    expect(error.tags).toEqual(['billing'])
+    expect(error.tags).toEqual(['billing', 'payments'])
     expectTypeOf(error.details).toEqualTypeOf<{
       provider: 'stripe' | 'adyen'
       amount: number
@@ -59,7 +59,7 @@ describe('betterErrors basics', () => {
 
     expect(json.__brand).toBe('better-errors')
     expect(json.code).toBe('billing.payment_failed')
-    expect(json.tags).toEqual(['billing'])
+    expect(json.tags).toEqual(['billing', 'payments'])
 
     const restored = errors.deserialize(json)
     expect(restored).toBeInstanceOf(errors.AppError)
@@ -77,6 +77,62 @@ describe('betterErrors basics', () => {
     const normalized = errors.http.from(unknown, 'core.internal_error')
     expect(normalized.status).toBe(500)
     expect(normalized.body.error.code).toBe('core.internal_error')
+  })
+
+  it('enforces detail requirements via props helper', () => {
+    const local = betterErrors({
+      codes: defineCodes({
+        'users.missing': code({
+          message: 'User missing',
+          details: props<{ userId: string }>(),
+        }),
+        'ops.rate_limited': code({
+          status: 429,
+          message: ({ details }) => `Retry after ${details.retryAfter}s`,
+          details: props({ retryAfter: 60 }),
+        }),
+      }),
+    })
+
+    const defaulted = local.create('ops.rate_limited')
+    expect(defaulted.details).toEqual({ retryAfter: 60 })
+    expect(defaulted.message).toBe('Retry after 60s')
+
+    const override = local.create('ops.rate_limited', { retryAfter: 5 })
+    expect(override.details.retryAfter).toBe(5)
+
+    // @ts-expect-error strict details are required
+    local.create('users.missing')
+
+    const strict = local.create('users.missing', { userId: 'u1' })
+    expect(strict.details.userId).toBe('u1')
+  })
+
+  it('applies defaulted details and narrows by tag', () => {
+    const defaulted = errors.create('billing.retry_later')
+    expect(defaulted.details).toEqual({ retryAfter: 45 })
+    expect(defaulted.message).toBe('Retry after 45s')
+
+    const withOverride = errors.create('billing.retry_later', { retryAfter: 10 })
+    expect(withOverride.details.retryAfter).toBe(10)
+
+    const paymentErr = errors.create('billing.payment_failed', {
+      provider: 'stripe',
+      amount: 12,
+    })
+
+    if (errors.hasTag(paymentErr, 'payments')) {
+      expectTypeOf(paymentErr.code).toEqualTypeOf<'billing.payment_failed'>()
+      expect(paymentErr.details.amount).toBe(12)
+    }
+
+    const authErr: unknown = errors.create('auth.invalid_token', { reason: 'expired' })
+    if (errors.hasTag(authErr, 'auth')) {
+      expectTypeOf(authErr.code).toEqualTypeOf<'auth.invalid_token' | 'auth.user_not_found'>()
+      if (authErr.code === 'auth.invalid_token') {
+        expect(authErr.details.reason).toBe('expired')
+      }
+    }
   })
 
   it('respects defaultExpose when code omits expose', () => {

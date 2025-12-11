@@ -2,14 +2,18 @@ import type { DetailsOf } from '../src'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { code, defineCodes } from '../src'
+import { code, defineCodes, props } from '../src'
 import { codes } from './fixtures'
 
 describe('defineCodes', () => {
   it('flattens nested code definitions and keeps metadata', () => {
     expect(Object.keys(codes).sort()).toEqual([
+      'analytics.event_dropped',
       'auth.invalid_token',
+      'auth.user_not_found',
       'billing.payment_failed',
+      'billing.retry_later',
+      'core.config_missing',
       'core.internal_error',
     ])
     expect(codes['billing.payment_failed'].retryable).toBe(true)
@@ -29,15 +33,18 @@ describe('defineCodes', () => {
   })
 
   it('accepts typed details via code helper and mixes with raw configs', () => {
+    // eslint-disable-next-line unused-imports/no-unused-vars
     const localCodes = defineCodes({
-      'auth.rejected': code<{ reason: 'expired' | 'missing' }>({
+      'auth.rejected': code({
         status: 401,
         message: 'Auth rejected',
+        details: props<{ reason: 'expired' | 'missing' }>(),
       }),
       'payments': {
-        failed: code<{ amount: number }>({
+        failed: code({
           status: 402,
           message: ({ details }) => `Failed to charge $${details.amount}`,
+          details: props<{ amount: number }>(),
         }),
       },
       'misc': {
@@ -52,7 +59,5 @@ describe('defineCodes', () => {
     expectTypeOf<RejectDetails>().toEqualTypeOf<{ reason: 'expired' | 'missing' }>()
     expectTypeOf<PaymentDetails>().toEqualTypeOf<{ amount: number }>()
     expectTypeOf<SimpleDetails>().toEqualTypeOf<unknown>()
-
-    expect('details' in (localCodes['auth.rejected'] as any)).toBe(false)
   })
 })

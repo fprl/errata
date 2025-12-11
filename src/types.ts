@@ -1,9 +1,59 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
+export const PROPS_DEFAULT = Symbol('better-errors:props-default')
+
+interface PropsMarker { [PROPS_DEFAULT]?: 'default' | 'strict' }
+
+/**
+ * Details tagged with defaults from props().
+ * Internal marker is stripped from public helpers.
+ */
+export type PropsWithDefault<T> = T & { [PROPS_DEFAULT]?: 'default' }
+export type PropsStrict<T> = T & { [PROPS_DEFAULT]?: 'strict' }
+
+type StripPropsMarker<T> = T extends any
+  ? T extends PropsMarker ? Omit<T, typeof PROPS_DEFAULT> : T
+  : never
+
+type RawDetails<T> = T extends CodeConfig<infer D> ? D : unknown
+
+type HasDefaultDetails<D> = D extends { [PROPS_DEFAULT]?: infer Kind }
+  ? Extract<Kind, 'default'> extends never ? false : true
+  : false
+
+type DetailsOptional<T>
+  = 'details' extends keyof T
+    ? HasDefaultDetails<RawDetails<T>> extends true
+      ? true
+      : [RawDetails<T>] extends [void | undefined]
+          ? true
+          : [undefined extends RawDetails<T> ? true : false] extends [true]
+              ? true
+              : false
+    : true
+
+type NonOptionalDetails<T> = StripPropsMarker<Exclude<RawDetails<T>, undefined>>
+type OptionalDetails<T> = StripPropsMarker<RawDetails<T>>
+
+export type DetailsPayload<T> = StripPropsMarker<T>
+
+export type TagsOfConfig<TConfig> = TConfig extends { tags?: readonly (infer TTag)[] }
+  ? TTag extends string
+    ? string extends TTag ? never : TTag
+    : never
+  : never
+
+export type CodesWithTag<
+  TCodes extends CodesRecord,
+  TTag extends string,
+> = {
+  [C in CodeOf<TCodes>]: TTag extends TagsOfConfig<TCodes[C]> ? C : never
+}[CodeOf<TCodes>]
+
 /** Resolves the error message for a code, optionally using its typed details. */
 export type MessageResolver<TDetails>
   = | string
-    | ((ctx: { details: TDetails }) => string)
+    | ((ctx: { details: DetailsPayload<TDetails> }) => string)
 
 export interface CodeConfig<TDetails = unknown> {
   /** Optional numeric code; usually HTTP status in web apps, otherwise a generic classification/exit code. */
@@ -26,13 +76,20 @@ export type CodesRecord = Record<string, CodeConfig<any>>
 export type CodeOf<TCodes extends CodesRecord> = Extract<keyof TCodes, string>
 
 type ExtractDetails<T> = T extends CodeConfig<infer D>
-  ? D extends void | undefined ? unknown : D
+  ? StripPropsMarker<D> extends void | undefined ? unknown : StripPropsMarker<D>
   : unknown
 
 export type DetailsOf<
   TCodes extends CodesRecord,
   TCode extends CodeOf<TCodes>,
 > = ExtractDetails<TCodes[TCode]>
+
+export type DetailsArg<
+  TCodes extends CodesRecord,
+  TCode extends CodeOf<TCodes>,
+> = DetailsOptional<TCodes[TCode]> extends true
+  ? OptionalDetails<TCodes[TCode]> | undefined
+  : NonOptionalDetails<TCodes[TCode]>
 
 export type CodesOf<T extends { _codesBrand?: any }> = NonNullable<T['_codesBrand']>
 

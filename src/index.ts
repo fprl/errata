@@ -7,7 +7,7 @@ export {
   type MatchHandlers,
 } from './better-errors'
 export { ClientAppError, createErrorClient, type ErrorClient } from './client'
-export { code, defineCodes } from './define-codes'
+export { code, defineCodes, props } from './define-codes'
 export type {
   CodeConfig,
   CodesOf,

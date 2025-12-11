@@ -8,8 +8,8 @@
 
 A typed, full-stack error model for TypeScript apps that **keeps `throw`**.
 
-- Central **codes registry** (`auth.invalid_token`, `billing.payment_failed`, …)
-- Strongly-typed helpers: `errors.throw`, `errors.is`, `errors.match`
+- Central **codes registry** with `defineCodes` + `code` + `props`
+- Strongly-typed helpers: `errors.throw`, `errors.is`, `errors.match`, `errors.hasTag`
 - Built-in **serialize/deserialize** for server → client
 - Optional **typed zones** (`scoped`, `safe`) for complex services
 - Zero runtime dependencies

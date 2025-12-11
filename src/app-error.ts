@@ -1,4 +1,4 @@
-import type { LogLevel, MessageResolver } from './types'
+import type { DetailsPayload, LogLevel, MessageResolver } from './types'
 
 /**
  * Structured wire format for errors.
@@ -78,7 +78,10 @@ export class AppError<C extends string = string, D = unknown> extends Error {
   }
 }
 
-export function resolveMessage<TDetails>(message: MessageResolver<TDetails>, details: TDetails): string {
+export function resolveMessage<TDetails>(
+  message: MessageResolver<TDetails>,
+  details: DetailsPayload<TDetails>,
+): string {
   return typeof message === 'function' ? message({ details }) : message
 }
 

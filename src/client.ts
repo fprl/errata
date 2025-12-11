@@ -1,6 +1,9 @@
 import type { SerializedError } from './app-error'
 import type { BetterErrorsInstance } from './better-errors'
 import type {
+  BetterErrorsClientPlugin,
+  ClientConfig,
+  ClientContext,
   CodeOf,
   CodesForTag,
   CodesRecord,
@@ -97,12 +100,22 @@ type InferCodes<T> = T extends BetterErrorsInstance<infer TCodes>
   ? TCodes
   : CodesRecord
 
+export interface ErrorClientOptions {
+  /** Optional app identifier for debugging. */
+  app?: string
+  /** Optional lifecycle plugins (payload adaptation, logging). */
+  plugins?: BetterErrorsClientPlugin[]
+}
+
 /**
  * Create a client that understands the server codes (type-only).
+ * @param options - Optional configuration including plugins.
  */
-export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): ErrorClient<
-  InferCodes<TServer>
-> {
+export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
+  options: ErrorClientOptions = {},
+): ErrorClient<InferCodes<TServer>> {
+  const { app, plugins = [] } = options
+
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
   type ClientCode = Code | 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
@@ -110,6 +123,21 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
     TCodes,
     Extract<CodesForTag<TCodes, TTag>, Code>
   >
+
+  // Validate plugin names for duplicates
+  const pluginNames = new Set<string>()
+  for (const plugin of plugins) {
+    if (pluginNames.has(plugin.name)) {
+      console.warn(`better-errors client: Duplicate plugin name "${plugin.name}" detected`)
+    }
+    pluginNames.add(plugin.name)
+  }
+
+  // Build the config object for plugin context
+  const config: ClientConfig = { app }
+
+  // Build the plugin context
+  const getContext = (): ClientContext => ({ config })
 
   const internal = (
     code: Extract<ClientCode, `be.${string}`>,
@@ -124,18 +152,59 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(): 
     })
   }
 
+  /** Run onCreate hooks for all plugins (side effects are independent). */
+  const runOnCreateHooks = (error: ClientAppError<any, any>): void => {
+    const ctx = getContext()
+    for (const plugin of plugins) {
+      if (plugin.onCreate) {
+        try {
+          plugin.onCreate(error, ctx)
+        }
+        catch (hookError) {
+          console.error(`better-errors client: plugin "${plugin.name}" crashed in onCreate`, hookError)
+        }
+      }
+    }
+  }
+
   /** Turn an unknown payload into a client error instance with defensive checks. */
   const deserialize = (
     payload: unknown,
   ): ClientAppError<ClientCode, any> => {
+    // Try plugin onDeserialize hooks (first non-null wins)
+    const ctx = getContext()
+    for (const plugin of plugins) {
+      if (plugin.onDeserialize) {
+        try {
+          const result = plugin.onDeserialize(payload, ctx)
+          if (result !== null) {
+            runOnCreateHooks(result)
+            return result
+          }
+        }
+        catch (hookError) {
+          console.error(`better-errors client: plugin "${plugin.name}" crashed in onDeserialize`, hookError)
+        }
+      }
+    }
+
+    // Standard deserialization logic
+    let error: ClientAppError<ClientCode, any>
     if (payload && typeof payload === 'object') {
       const withCode = payload as { code?: unknown }
       if (typeof withCode.code === 'string') {
-        return new ClientAppError(withCode as SerializedError<ClientCode, any>)
+        error = new ClientAppError(withCode as SerializedError<ClientCode, any>)
       }
-      return internal('be.deserialization_failed', payload)
+      else {
+        error = internal('be.deserialization_failed', payload)
+      }
     }
-    return internal('be.unknown_error', payload)
+    else {
+      error = internal('be.unknown_error', payload)
+    }
+
+    runOnCreateHooks(error)
+    return error
   }
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */

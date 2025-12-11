@@ -189,3 +189,143 @@ export type MatchingClientAppError<
  * Returns never for non-wildcard patterns.
  */
 export type ExtractPrefix<P extends string> = P extends `${infer Prefix}.*` ? Prefix : never
+
+// ─── Plugin Types ─────────────────────────────────────────────────────────────
+
+/**
+ * Helper to extract codes from a plugin type.
+ */
+export type PluginCodes<T> = T extends BetterErrorsPlugin<infer C> ? C : never
+
+/**
+ * Merge codes from a tuple of plugins into a single CodesRecord.
+ */
+export type MergePluginCodes<T extends readonly any[]> = T extends readonly [infer Head, ...infer Tail]
+  ? PluginCodes<Head> & MergePluginCodes<Tail>
+  // eslint-disable-next-line ts/no-empty-object-type
+  : {}
+
+/**
+ * Configuration record for error codes.
+ * Same as CodesRecord but explicitly for plugin definitions.
+ */
+export type CodeConfigRecord = CodesRecord
+
+/**
+ * Configuration exposed to plugins via the context object.
+ */
+export interface BetterErrorsConfig {
+  /** Optional app identifier for logging/observability. */
+  app?: string
+  /** Server-only environment label (e.g. dev/staging/prod). */
+  env?: string
+  /** Default numeric status when none is provided per-code. */
+  defaultStatus: number
+  /** Default advisory flag for user-facing exposure. */
+  defaultExpose: boolean
+  /** Default hint for retry-worthiness. */
+  defaultRetryable: boolean
+}
+
+/**
+ * Context object passed to server-side plugin hooks.
+ * Provides restricted access to the betterErrors instance.
+ */
+export interface BetterErrorsContext<TCodes extends CodesRecord = CodesRecord> {
+  /** Create an AppError for a known code. */
+  create: (code: CodeOf<TCodes>, details?: any) => import('./app-error').AppError<CodeOf<TCodes>, any>
+  /** Normalize unknown errors into AppError. */
+  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./app-error').AppError<CodeOf<TCodes>, any>
+  /** Access to instance configuration. */
+  config: BetterErrorsConfig
+}
+
+/**
+ * Server-side plugin interface.
+ * Plugins can inject codes, intercept errors, and observe error creation.
+ */
+export interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord = CodeConfigRecord> {
+  /** Unique name for debugging/deduplication. */
+  name: string
+
+  /**
+   * Dictionary of codes to merge into the main registry.
+   * These must be strictly typed so the user gets autocomplete.
+   */
+  codes?: TPluginCodes
+
+  /**
+   * Hook: Input Mapping
+   * Runs inside `errors.ensure(err)`.
+   * @param error - The raw unknown error being ensured.
+   * @param ctx - The betterErrors instance (restricted context).
+   * @returns AppError instance OR { code, details } OR null (to pass).
+   */
+  onEnsure?: (
+    error: unknown,
+    ctx: BetterErrorsContext<TPluginCodes>,
+  ) => import('./app-error').AppError<any, any> | { code: string, details?: any } | null
+
+  /**
+   * Hook: Side Effects
+   * Runs synchronously inside `errors.create()` (and by extension `throw`).
+   * All plugins receive this callback (side effects are independent).
+   * @param error - The fully formed AppError instance.
+   * @param ctx - The betterErrors instance.
+   */
+  onCreate?: (
+    error: import('./app-error').AppError<any, any>,
+    ctx: BetterErrorsContext<TPluginCodes>,
+  ) => void
+}
+
+// ─── Client Plugin Types ──────────────────────────────────────────────────────
+
+/**
+ * Client configuration exposed to plugins.
+ */
+export interface ClientConfig {
+  /** App identifier if provided. */
+  app?: string
+}
+
+/**
+ * Context object passed to client-side plugin hooks.
+ */
+export interface ClientContext {
+  /** Access to client configuration. */
+  config: ClientConfig
+}
+
+/**
+ * Client-side plugin interface.
+ * Primarily for adapting network payloads and observing error creation.
+ */
+export interface BetterErrorsClientPlugin {
+  /** Unique name for debugging/deduplication. */
+  name: string
+
+  /**
+   * Hook: Payload Adaptation
+   * Runs inside `client.deserialize(payload)`.
+   * @param payload - The raw input (usually JSON).
+   * @param ctx - Client context.
+   * @returns ClientAppError instance OR null (to pass to next plugin).
+   */
+  onDeserialize?: (
+    payload: unknown,
+    ctx: ClientContext,
+  ) => import('./client').ClientAppError<any, any> | null
+
+  /**
+   * Hook: Side Effects
+   * Runs when `deserialize` succeeds.
+   * All plugins receive this callback (side effects are independent).
+   * @param error - The ClientAppError instance.
+   * @param ctx - Client context.
+   */
+  onCreate?: (
+    error: import('./client').ClientAppError<any, any>,
+    ctx: ClientContext,
+  ) => void
+}

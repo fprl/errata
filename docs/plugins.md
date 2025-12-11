@@ -54,6 +54,7 @@ interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord> {
 Plugins need access to the library's tools to create errors or check configs.
 
   * `ctx.create(code, details)`: To manufacture a valid AppError.
+  * `ctx.ensure(err, fallbackCode?)`: To normalize unknown errors (useful for wrapping/re-normalizing).
   * `ctx.config`: Access to `env`, `app` name, etc.
 
 ### Type Inference Requirements
@@ -78,8 +79,15 @@ The `betterErrors` factory must be updated to accept a `plugins` array.
 
       * Instantiate the `AppError`.
       * Iterate through `plugins`.
-      * Call `plugin.onCreate(error, ctx)`.
-      * *Note:* Swallow any errors thrown inside `onCreate` to prevent logging from crashing the app (optional but recommended safety).
+      * Call `plugin.onCreate(error, ctx)` for **all** plugins (side effects are independent).
+      * Wrap each call in try/catch; if an error occurs, `console.error('better-errors: plugin [name] crashed in onCreate', err)`.
+
+### Plugin Validation (at initialization)
+
+When `betterErrors({ plugins: [] })` initializes:
+
+  * Check for duplicate `plugin.name` values and warn.
+  * Check if any plugin codes overlap with each other or the user's base codes and warn.
 
 -----
 

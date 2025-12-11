@@ -3,20 +3,33 @@ export {
   betterErrors,
   type BetterErrorsInstance,
   type BetterErrorsOptions,
-  type BetterErrorsPlugin,
   type MatchHandlers,
 } from './better-errors'
-export { ClientAppError, createErrorClient, type ErrorClient } from './client'
+export {
+  ClientAppError,
+  createErrorClient,
+  type ErrorClient,
+  type ErrorClientOptions,
+} from './client'
 export { code, defineCodes, props } from './define-codes'
 export type {
+  BetterErrorsClientPlugin,
+  BetterErrorsConfig,
+  BetterErrorsContext,
+  BetterErrorsPlugin,
+  ClientConfig,
+  ClientContext,
   CodeConfig,
+  CodeConfigRecord,
   CodesOf,
   DetailsOf,
   MatchingAppError,
   MatchingClientAppError,
   MatchingCodes,
+  MergePluginCodes,
   MessageResolver,
   Pattern,
+  PluginCodes,
   ResolveMatchingCodes,
 } from './types'
 export {

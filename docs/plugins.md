@@ -1,0 +1,180 @@
+# Better Errors: Plugin System Specification
+
+## 1\. Architectural Overview
+
+The plugin system allows developers to extend `better-errors` with reusable logic bundles. Plugins can:
+
+1.  **Inject Codes:** Add new error codes to the registry types automatically.
+2.  **Intercept & Map:** Translate external errors (Stripe, Zod, Backend API) into AppErrors via `ensure`.
+3.  **Observe:** Listen to error creation for logging/monitoring via `onCreate`.
+4.  **Adapt (Client):** Handle custom payload formats on the client via `deserialize`.
+
+The system exists on both the **Server** (Node.js/Edge) and the **Client** (Browser/SPA).
+
+-----
+
+## 2\. Server-Side Plugin Architecture
+
+### Interface: `BetterErrorsPlugin`
+
+A plugin is an object (usually returned by a factory function) with the following signature:
+
+```ts
+interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord> {
+  /** unique name for debugging/deduplication */
+  name: string
+
+  /**
+   * Dictionary of codes to merge into the main registry.
+   * These must be strictly typed so the user gets autocomplete.
+   */
+  codes?: TPluginCodes
+
+  /**
+   * Hook: Input Mapping
+   * Runs inside `errors.ensure(err)`.
+   * @param error - The raw unknown error being ensured.
+   * @param ctx - The betterErrors instance (restricted context).
+   * @returns AppError instance OR { code, details } OR null (to pass).
+   */
+  onEnsure?: (error: unknown, ctx: BetterErrorsContext) => AppError | { code: string, details?: any } | null
+
+  /**
+   * Hook: Side Effects
+   * Runs synchronously inside `errors.create()` (and by extension `throw`).
+   * @param error - The fully formed AppError instance.
+   * @param ctx - The betterErrors instance.
+   */
+  onCreate?: (error: AppError, ctx: BetterErrorsContext) => void
+}
+```
+
+### The `BetterErrorsContext` (`ctx`)
+
+Plugins need access to the library's tools to create errors or check configs.
+
+  * `ctx.create(code, details)`: To manufacture a valid AppError.
+  * `ctx.config`: Access to `env`, `app` name, etc.
+
+### Type Inference Requirements
+
+The `betterErrors` factory must be updated to accept a `plugins` array.
+
+  * **Generics:** It must accept a tuple of plugins `TPlugins`.
+  * **Inference:** The returned instance type must include the intersection of `UserCodes & Plugin1Codes & Plugin2Codes`.
+  * **Goal:** `errors.create('stripe.card_declined')` should autocomplete if the Stripe plugin is added, without manual type merging.
+
+### Execution Logic
+
+1.  **`errors.ensure(err)` Flow:**
+
+      * Iterate through `plugins` in order.
+      * Call `plugin.onEnsure(err, ctx)`.
+      * **Stop** at the first plugin that returns a non-null value.
+      * Use that value to return the final `AppError`.
+      * *Fallback:* If no plugin handles it, proceed with standard normalization (check `instanceof Error`, etc.).
+
+2.  **`errors.create(...)` Flow:**
+
+      * Instantiate the `AppError`.
+      * Iterate through `plugins`.
+      * Call `plugin.onCreate(error, ctx)`.
+      * *Note:* Swallow any errors thrown inside `onCreate` to prevent logging from crashing the app (optional but recommended safety).
+
+-----
+
+## 3\. Client-Side Plugin Architecture
+
+### Interface: `BetterErrorsClientPlugin`
+
+The client needs a lighter plugin system, primarily for adapting network payloads.
+
+```ts
+interface BetterErrorsClientPlugin {
+  name: string
+
+  /**
+   * Hook: Payload Adaptation
+   * Runs inside `client.deserialize(payload)`.
+   * @param payload - The raw input (usually JSON).
+   * @param ctx - Client context.
+   * @returns ClientAppError instance OR null.
+   */
+  onDeserialize?: (payload: unknown, ctx: ClientContext) => ClientAppError | null
+
+  /**
+   * Hook: Side Effects
+   * Runs inside `client.create()` or when `deserialize` succeeds.
+   */
+  onCreate?: (error: ClientAppError, ctx: ClientContext) => void
+}
+```
+
+### Execution Logic
+
+1.  **`client.deserialize(payload)` Flow:**
+      * Iterate through `plugins`.
+      * Call `plugin.onDeserialize(payload, ctx)`.
+      * **Stop** at the first non-null return.
+      * *Fallback:* If no plugin handles it, use the standard logic (check for `.code`, validation, `be.unknown_error`).
+
+-----
+
+## 4\. Testing Strategy (`plugins.test.ts`)
+
+Since you know the internal logic, here is the list of test cases required to validate this architecture.
+
+### A. Server Plugin Tests
+
+1.  **Code Injection & Inference:**
+
+      * Define a plugin with a unique code (e.g., `plugin.test_error`).
+      * Initialize `betterErrors` with that plugin.
+      * **Runtime:** Assert `errors.create('plugin.test_error')` works.
+      * **Types:** (Verified via TS compilation) Assert that the code appears in the union.
+
+2.  **`onEnsure` Mapping (The "Stripe" Case):**
+
+      * Mock a "Third Party Error" class (e.g., `class StripeError extends Error { code = 'card_declined' }`).
+      * Create a plugin that detects `StripeError` in `onEnsure` and maps it to `billing.declined`.
+      * Call `errors.ensure(new StripeError())`.
+      * **Assert:** The returned object is an `AppError` with code `billing.declined` and correct details.
+
+3.  **`onEnsure` Priority/Chain:**
+
+      * Register two plugins. Plugin A returns `null`. Plugin B returns an error.
+      * Call `ensure`.
+      * **Assert:** Plugin B's result is used.
+      * *Reverse:* Plugin A returns an error. Plugin B is **not** called (short-circuit).
+
+4.  **`onCreate` Side Effects (The "Sentry" Case):**
+
+      * Create a mock spy function `logSpy`.
+      * Create a plugin that calls `logSpy` in `onCreate`.
+      * Call `errors.create(...)`.
+      * **Assert:** `logSpy` was called with the created error.
+      * Call `errors.throw(...)` (inside a try/catch).
+      * **Assert:** `logSpy` was called (proving `throw` calls `create`).
+
+### B. Client Plugin Tests
+
+5.  **`onDeserialize` Adaptation (The "RFC 7807" Case):**
+
+      * Create a payload that **fails** standard validation (e.g., missing `code`, but has `type` and `title`).
+      * Create a client plugin that detects `type`, and maps it to a `ClientAppError`.
+      * Call `client.deserialize(customPayload)`.
+      * **Assert:** It returns a valid `ClientAppError` instead of `be.deserialization_failed`.
+
+6.  **`onCreate` Client Logging:**
+
+      * Create a client plugin with `onCreate`.
+      * Deserialize a payload.
+      * **Assert:** The hook fired.
+
+-----
+
+## 5\. Implementation Notes for the AI
+
+  * **Recursion Safety:** Be careful that `ctx.create()` inside a plugin doesn't trigger an infinite loop of `onCreate` hooks if not handled carefully (though usually `onCreate` logic like logging doesn't call `create` again).
+  * **Dependency Injection:** Ensure `ctx` passed to plugins is robust. It's often easiest to pass the fully constructed `errors` instance, but be aware of circular reference issues during initialization. A lazy getter or passing a restricted API surface is preferred.
+  * **`errors.throw` vs `errors.create`:** Update `throw` to internally call `create` so that `onCreate` hooks are guaranteed to run exactly once per error.

@@ -11,7 +11,7 @@ export {
   type ErrorClient,
   type ErrorClientOptions,
 } from './client'
-export { code, defineCodes, props } from './define-codes'
+export { code, defineClientPlugin, defineCodes, definePlugin, props } from './define'
 export type {
   BetterErrorsClientPlugin,
   BetterErrorsConfig,

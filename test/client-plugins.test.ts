@@ -3,7 +3,7 @@ import type { BetterErrorsClientPlugin } from '../src'
 import type { errors } from './fixtures'
 
 import { describe, expect, it, vi } from 'vitest'
-import { ClientAppError, createErrorClient } from '../src'
+import { ClientAppError, createErrorClient, defineClientPlugin } from '../src'
 
 // ─── 5. onDeserialize Adaptation (The "RFC 7807" Case) ────────────────────────
 
@@ -304,5 +304,30 @@ describe('client plugin validation', () => {
     )
 
     warnSpy.mockRestore()
+  })
+
+  it('defineClientPlugin provides type inference for plugin authors', () => {
+    // defineClientPlugin provides autocomplete for hooks and ctx
+    const myPlugin = defineClientPlugin({
+      name: 'my-client-plugin',
+      onDeserialize: (payload, ctx) => {
+        // ctx.config should be accessible
+        if (ctx.config.app === 'test') {
+          return null
+        }
+        return null
+      },
+      onCreate: (_error, ctx) => {
+        expect(ctx.config).toBeDefined()
+      },
+    })
+
+    const client = createErrorClient<typeof errors>({
+      app: 'test-app',
+      plugins: [myPlugin],
+    })
+
+    const err = client.deserialize({ code: 'test', message: 'test' })
+    expect(err.code).toBe('test')
   })
 })

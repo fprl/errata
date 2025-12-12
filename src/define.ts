@@ -1,4 +1,12 @@
-import type { CodeConfig, CodesRecord, PropsStrict, PropsWithDefault } from './types'
+import type {
+  BetterErrorsClientPlugin,
+  BetterErrorsPlugin,
+  CodeConfig,
+  CodeConfigRecord,
+  CodesRecord,
+  PropsStrict,
+  PropsWithDefault,
+} from './types'
 
 type NestedKeys<T> = {
   [K in keyof T]: T[K] extends Record<string, CodeConfig<any>>
@@ -81,4 +89,24 @@ export function props<T>(defaults?: T): T {
  */
 export function code<C extends CodeConfig<any> & { details: unknown }>(config: C): C {
   return config
+}
+
+/**
+ * Define a server-side plugin with full type inference.
+ * Provides autocomplete for hooks and ctx methods.
+ */
+export function definePlugin<T extends CodeConfigRecord = CodeConfigRecord>(
+  plugin: BetterErrorsPlugin<T>,
+): BetterErrorsPlugin<T> {
+  return plugin
+}
+
+/**
+ * Define a client-side plugin with full type inference.
+ * Provides autocomplete for hooks and ctx methods.
+ */
+export function defineClientPlugin(
+  plugin: BetterErrorsClientPlugin,
+): BetterErrorsClientPlugin {
+  return plugin
 }

@@ -2,7 +2,7 @@ import type { BetterErrorsPlugin } from '../src'
 
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { AppError, betterErrors, code, defineCodes, props } from '../src'
+import { AppError, betterErrors, code, defineCodes, definePlugin, props } from '../src'
 
 // ─── Test Fixtures ────────────────────────────────────────────────────────────
 
@@ -101,6 +101,43 @@ describe('plugin code injection', () => {
       expect.stringContaining('already exists'),
     )
     warnSpy.mockRestore()
+  })
+
+  it('definePlugin provides type inference for plugin authors', () => {
+    const myPluginCodes = defineCodes({
+      myplugin: {
+        custom_error: {
+          status: 500,
+          message: 'Custom error from plugin',
+        },
+      },
+    })
+
+    // definePlugin provides autocomplete for hooks and ctx
+    const myPlugin = definePlugin({
+      name: 'my-plugin',
+      codes: myPluginCodes,
+      onEnsure: (_error, ctx) => {
+        // ctx.create should be available with autocomplete
+        if (_error instanceof Error && _error.message === 'trigger') {
+          return ctx.create('myplugin.custom_error')
+        }
+        return null
+      },
+      onCreate: (_error, ctx) => {
+        // ctx.config should be accessible
+        expect(ctx.config).toBeDefined()
+      },
+    })
+
+    const errors = betterErrors({
+      codes: baseCodes,
+      plugins: [myPlugin] as const,
+    })
+
+    // Plugin codes should be available
+    const err = errors.create('myplugin.custom_error')
+    expect(err.code).toBe('myplugin.custom_error')
   })
 })
 

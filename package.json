@@ -1,17 +1,17 @@
 {
-  "name": "better-errors",
+  "name": "errata",
   "type": "module",
   "version": "0.0.0",
   "packageManager": "pnpm@10.20.0",
-  "description": "A typed error model for TypeScript apps that keeps `throw`.",
+  "description": "A typed error registry for TypeScript. Errors are data—define them like it.",
   "author": "Franco P. Romano L. ",
   "license": "MIT",
-  "homepage": "https://github.com/fprl/better-errors#readme",
+  "homepage": "https://github.com/fprl/errata#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fprl/better-errors.git"
+    "url": "git+https://github.com/fprl/errata.git"
   },
-  "bugs": "https://github.com/fprl/better-errors/issues",
+  "bugs": "https://github.com/fprl/errata/issues",
   "keywords": [],
   "sideEffects": false,
   "exports": {
@@ -63,6 +63,6 @@
     "pre-commit": "pnpm i --frozen-lockfile --ignore-scripts --offline && npx lint-staged"
   },
   "lint-staged": {
-    "*": "eslint --fix"
+    "*.{ts,js,mjs,cjs}": "eslint --fix"
   }
 }

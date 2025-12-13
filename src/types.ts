@@ -1,6 +1,8 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
-export const PROPS_DEFAULT = Symbol('better-errors:props-default')
+export const LIB_NAME = 'errata' as const
+
+export const PROPS_DEFAULT = Symbol(`${LIB_NAME}:props-default`)
 
 interface PropsMarker { [PROPS_DEFAULT]?: 'default' | 'strict' }
 
@@ -195,7 +197,7 @@ export type ExtractPrefix<P extends string> = P extends `${infer Prefix}.*` ? Pr
 /**
  * Helper to extract codes from a plugin type.
  */
-export type PluginCodes<T> = T extends BetterErrorsPlugin<infer C> ? C : never
+export type PluginCodes<T> = T extends ErrataPlugin<infer C> ? C : never
 
 /**
  * Merge codes from a tuple of plugins into a single CodesRecord.
@@ -214,7 +216,7 @@ export type CodeConfigRecord = CodesRecord
 /**
  * Configuration exposed to plugins via the context object.
  */
-export interface BetterErrorsConfig {
+export interface ErrataConfig {
   /** Optional app identifier for logging/observability. */
   app?: string
   /** Server-only environment label (e.g. dev/staging/prod). */
@@ -229,22 +231,22 @@ export interface BetterErrorsConfig {
 
 /**
  * Context object passed to server-side plugin hooks.
- * Provides restricted access to the betterErrors instance.
+ * Provides restricted access to the errata instance.
  */
-export interface BetterErrorsContext<TCodes extends CodesRecord = CodesRecord> {
+export interface ErrataContext<TCodes extends CodesRecord = CodesRecord> {
   /** Create an AppError for a known code. */
   create: (code: CodeOf<TCodes>, details?: any) => import('./app-error').AppError<CodeOf<TCodes>, any>
   /** Normalize unknown errors into AppError. */
   ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./app-error').AppError<CodeOf<TCodes>, any>
   /** Access to instance configuration. */
-  config: BetterErrorsConfig
+  config: ErrataConfig
 }
 
 /**
  * Server-side plugin interface.
  * Plugins can inject codes, intercept errors, and observe error creation.
  */
-export interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord = CodeConfigRecord> {
+export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfigRecord> {
   /** Unique name for debugging/deduplication. */
   name: string
 
@@ -258,12 +260,12 @@ export interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord = Code
    * Hook: Input Mapping
    * Runs inside `errors.ensure(err)`.
    * @param error - The raw unknown error being ensured.
-   * @param ctx - The betterErrors instance (restricted context).
+   * @param ctx - The errata instance (restricted context).
    * @returns AppError instance OR { code, details } OR null (to pass).
    */
   onEnsure?: (
     error: unknown,
-    ctx: BetterErrorsContext<TPluginCodes>,
+    ctx: ErrataContext<TPluginCodes>,
   ) => import('./app-error').AppError<any, any> | { code: string, details?: any } | null
 
   /**
@@ -271,11 +273,11 @@ export interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord = Code
    * Runs synchronously inside `errors.create()` (and by extension `throw`).
    * All plugins receive this callback (side effects are independent).
    * @param error - The fully formed AppError instance.
-   * @param ctx - The betterErrors instance.
+   * @param ctx - The errata instance.
    */
   onCreate?: (
     error: import('./app-error').AppError<any, any>,
-    ctx: BetterErrorsContext<TPluginCodes>,
+    ctx: ErrataContext<TPluginCodes>,
   ) => void
 }
 
@@ -301,7 +303,7 @@ export interface ClientContext {
  * Client-side plugin interface.
  * Primarily for adapting network payloads and observing error creation.
  */
-export interface BetterErrorsClientPlugin {
+export interface ErrataClientPlugin {
   /** Unique name for debugging/deduplication. */
   name: string
 

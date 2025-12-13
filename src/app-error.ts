@@ -1,4 +1,5 @@
 import type { DetailsPayload, LogLevel, MessageResolver } from './types'
+import { LIB_NAME } from './types'
 
 /**
  * Structured wire format for errors.
@@ -6,7 +7,7 @@ import type { DetailsPayload, LogLevel, MessageResolver } from './types'
  * - `details`: structured payload for this code; passed through unchanged.
  */
 export interface SerializedError<C extends string = string, D = unknown> {
-  __brand: 'better-errors'
+  __brand: typeof LIB_NAME
   app?: string
   code: C
   message: string
@@ -64,7 +65,7 @@ export class AppError<C extends string = string, D = unknown> extends Error {
 
   toJSON(): SerializedError<C, D> {
     return {
-      __brand: 'better-errors',
+      __brand: LIB_NAME,
       app: this.app,
       // env is intentionally server-only; omitted from serialized shape
       code: this.code,
@@ -89,6 +90,6 @@ export function isSerializedError(value: unknown): value is SerializedError<stri
   return (
     !!value
     && typeof value === 'object'
-    && (value as SerializedError).__brand === 'better-errors'
+    && (value as SerializedError).__brand === LIB_NAME
   )
 }

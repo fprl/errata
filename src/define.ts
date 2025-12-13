@@ -1,9 +1,9 @@
 import type {
-  BetterErrorsClientPlugin,
-  BetterErrorsPlugin,
   CodeConfig,
   CodeConfigRecord,
   CodesRecord,
+  ErrataClientPlugin,
+  ErrataPlugin,
   PropsStrict,
   PropsWithDefault,
 } from './types'
@@ -96,8 +96,8 @@ export function code<C extends CodeConfig<any> & { details: unknown }>(config: C
  * Provides autocomplete for hooks and ctx methods.
  */
 export function definePlugin<T extends CodeConfigRecord = CodeConfigRecord>(
-  plugin: BetterErrorsPlugin<T>,
-): BetterErrorsPlugin<T> {
+  plugin: ErrataPlugin<T>,
+): ErrataPlugin<T> {
   return plugin
 }
 
@@ -106,7 +106,7 @@ export function definePlugin<T extends CodeConfigRecord = CodeConfigRecord>(
  * Provides autocomplete for hooks and ctx methods.
  */
 export function defineClientPlugin(
-  plugin: BetterErrorsClientPlugin,
-): BetterErrorsClientPlugin {
+  plugin: ErrataClientPlugin,
+): ErrataClientPlugin {
   return plugin
 }

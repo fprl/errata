@@ -1,17 +1,18 @@
 import type { SerializedError } from './app-error'
-import type { BetterErrorsInstance } from './better-errors'
+import type { ErrataInstance } from './errata'
 import type {
-  BetterErrorsClientPlugin,
   ClientConfig,
   ClientContext,
   CodeOf,
   CodesForTag,
   CodesRecord,
+  ErrataClientPlugin,
   MatchingClientAppError,
   Pattern,
   PatternInput,
 } from './types'
 
+import { LIB_NAME } from './types'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
 // ─── Client Types ─────────────────────────────────────────────────────────────
@@ -96,7 +97,7 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   >
 }
 
-type InferCodes<T> = T extends BetterErrorsInstance<infer TCodes>
+type InferCodes<T> = T extends ErrataInstance<infer TCodes>
   ? TCodes
   : CodesRecord
 
@@ -104,14 +105,14 @@ export interface ErrorClientOptions {
   /** Optional app identifier for debugging. */
   app?: string
   /** Optional lifecycle plugins (payload adaptation, logging). */
-  plugins?: BetterErrorsClientPlugin[]
+  plugins?: ErrataClientPlugin[]
 }
 
 /**
  * Create a client that understands the server codes (type-only).
  * @param options - Optional configuration including plugins.
  */
-export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
+export function createErrorClient<TServer extends ErrataInstance<any>>(
   options: ErrorClientOptions = {},
 ): ErrorClient<InferCodes<TServer>> {
   const { app, plugins = [] } = options
@@ -128,7 +129,7 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
   const pluginNames = new Set<string>()
   for (const plugin of plugins) {
     if (pluginNames.has(plugin.name)) {
-      console.warn(`better-errors client: Duplicate plugin name "${plugin.name}" detected`)
+      console.warn(`${LIB_NAME} client: Duplicate plugin name "${plugin.name}" detected`)
     }
     pluginNames.add(plugin.name)
   }
@@ -144,7 +145,7 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
     raw: unknown,
   ): ClientAppError<ClientCode, { raw: unknown }> => {
     return new ClientAppError<ClientCode, { raw: unknown }>({
-      __brand: 'better-errors',
+      __brand: LIB_NAME,
       code,
       message: code,
       details: { raw },
@@ -161,7 +162,7 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
           plugin.onCreate(error, ctx)
         }
         catch (hookError) {
-          console.error(`better-errors client: plugin "${plugin.name}" crashed in onCreate`, hookError)
+          console.error(`${LIB_NAME} client: plugin "${plugin.name}" crashed in onCreate`, hookError)
         }
       }
     }
@@ -183,7 +184,7 @@ export function createErrorClient<TServer extends BetterErrorsInstance<any>>(
           }
         }
         catch (hookError) {
-          console.error(`better-errors client: plugin "${plugin.name}" crashed in onDeserialize`, hookError)
+          console.error(`${LIB_NAME} client: plugin "${plugin.name}" crashed in onDeserialize`, hookError)
         }
       }
     }

@@ -1,4 +1,4 @@
-import type { BetterErrorsClientPlugin } from '../src'
+import type { ErrataClientPlugin } from '../src'
 
 import type { errors } from './fixtures'
 
@@ -9,7 +9,7 @@ import { ClientAppError, createErrorClient, defineClientPlugin } from '../src'
 
 describe('client plugin onDeserialize adaptation', () => {
   it('adapts non-standard payloads via plugin', () => {
-    // RFC 7807 Problem Details format (different from better-errors format)
+    // RFC 7807 Problem Details format (different from errata format)
     const rfc7807Payload = {
       type: 'https://example.com/errors/payment-failed',
       title: 'Payment Failed',
@@ -17,7 +17,7 @@ describe('client plugin onDeserialize adaptation', () => {
       detail: 'Your card was declined due to insufficient funds.',
     }
 
-    const rfc7807Plugin: BetterErrorsClientPlugin = {
+    const rfc7807Plugin: ErrataClientPlugin = {
       name: 'rfc7807',
       onDeserialize: (payload, _ctx) => {
         if (
@@ -29,7 +29,7 @@ describe('client plugin onDeserialize adaptation', () => {
           const p = payload as { type: string, title: string, status?: number, detail?: string }
           // Map RFC 7807 to ClientAppError
           return new ClientAppError({
-            __brand: 'better-errors',
+            __brand: 'errata',
             code: 'billing.payment_failed', // Map type to code
             message: p.detail ?? p.title,
             status: p.status,
@@ -55,7 +55,7 @@ describe('client plugin onDeserialize adaptation', () => {
   })
 
   it('falls back to standard deserialization when plugins return null', () => {
-    const noopPlugin: BetterErrorsClientPlugin = {
+    const noopPlugin: ErrataClientPlugin = {
       name: 'noop',
       onDeserialize: () => null,
     }
@@ -64,9 +64,9 @@ describe('client plugin onDeserialize adaptation', () => {
       plugins: [noopPlugin],
     })
 
-    // Standard better-errors payload
+    // Standard errata payload
     const standardPayload = {
-      __brand: 'better-errors' as const,
+      __brand: 'errata' as const,
       code: 'auth.invalid_token',
       message: 'Invalid token',
       status: 401,
@@ -89,12 +89,12 @@ describe('client plugin onDeserialize adaptation', () => {
   it('stops at first plugin that returns non-null', () => {
     const spyB = vi.fn(() => null)
 
-    const pluginA: BetterErrorsClientPlugin = {
+    const pluginA: ErrataClientPlugin = {
       name: 'plugin-a',
       onDeserialize: (payload) => {
         if (payload && typeof payload === 'object' && 'custom' in payload) {
           return new ClientAppError({
-            __brand: 'better-errors',
+            __brand: 'errata',
             code: 'core.internal_error',
             message: 'Handled by A',
             tags: [],
@@ -104,7 +104,7 @@ describe('client plugin onDeserialize adaptation', () => {
       },
     }
 
-    const pluginB: BetterErrorsClientPlugin = {
+    const pluginB: ErrataClientPlugin = {
       name: 'plugin-b',
       onDeserialize: spyB,
     }
@@ -122,7 +122,7 @@ describe('client plugin onDeserialize adaptation', () => {
   it('handles errors in onDeserialize gracefully', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const crashingPlugin: BetterErrorsClientPlugin = {
+    const crashingPlugin: ErrataClientPlugin = {
       name: 'crashing',
       onDeserialize: () => {
         throw new Error('Plugin exploded!')
@@ -152,7 +152,7 @@ describe('client plugin onCreate', () => {
   it('calls onCreate when deserialize succeeds', () => {
     const logSpy = vi.fn()
 
-    const loggingPlugin: BetterErrorsClientPlugin = {
+    const loggingPlugin: ErrataClientPlugin = {
       name: 'logging',
       onCreate: (error, _ctx) => {
         logSpy(error.code, error.message)
@@ -164,7 +164,7 @@ describe('client plugin onCreate', () => {
     })
 
     const payload = {
-      __brand: 'better-errors' as const,
+      __brand: 'errata' as const,
       code: 'auth.invalid_token',
       message: 'Token expired',
       tags: [],
@@ -178,12 +178,12 @@ describe('client plugin onCreate', () => {
   it('calls onCreate for plugin-adapted errors', () => {
     const logSpy = vi.fn()
 
-    const adapterPlugin: BetterErrorsClientPlugin = {
+    const adapterPlugin: ErrataClientPlugin = {
       name: 'adapter',
       onDeserialize: (payload) => {
         if (payload && typeof payload === 'object' && 'custom' in payload) {
           return new ClientAppError({
-            __brand: 'better-errors',
+            __brand: 'errata',
             code: 'core.internal_error',
             message: 'Custom adapted',
             tags: [],
@@ -193,7 +193,7 @@ describe('client plugin onCreate', () => {
       },
     }
 
-    const loggingPlugin: BetterErrorsClientPlugin = {
+    const loggingPlugin: ErrataClientPlugin = {
       name: 'logging',
       onCreate: error => logSpy(error.code),
     }
@@ -211,12 +211,12 @@ describe('client plugin onCreate', () => {
     const spyA = vi.fn()
     const spyB = vi.fn()
 
-    const pluginA: BetterErrorsClientPlugin = {
+    const pluginA: ErrataClientPlugin = {
       name: 'plugin-a',
       onCreate: () => spyA(),
     }
 
-    const pluginB: BetterErrorsClientPlugin = {
+    const pluginB: ErrataClientPlugin = {
       name: 'plugin-b',
       onCreate: () => spyB(),
     }
@@ -235,14 +235,14 @@ describe('client plugin onCreate', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const safeSpy = vi.fn()
 
-    const crashingPlugin: BetterErrorsClientPlugin = {
+    const crashingPlugin: ErrataClientPlugin = {
       name: 'crashing',
       onCreate: () => {
         throw new Error('onCreate exploded!')
       },
     }
 
-    const safePlugin: BetterErrorsClientPlugin = {
+    const safePlugin: ErrataClientPlugin = {
       name: 'safe',
       onCreate: () => safeSpy(),
     }
@@ -268,7 +268,7 @@ describe('client plugin onCreate', () => {
   it('provides ctx.config with app identifier', () => {
     let capturedApp: string | undefined
 
-    const configPlugin: BetterErrorsClientPlugin = {
+    const configPlugin: ErrataClientPlugin = {
       name: 'config-reader',
       onCreate: (_error, ctx) => {
         capturedApp = ctx.config.app

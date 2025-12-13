@@ -1,28 +1,28 @@
 export { AppError, type SerializedError } from './app-error'
 export {
-  betterErrors,
-  type BetterErrorsInstance,
-  type BetterErrorsOptions,
-  type MatchHandlers,
-} from './better-errors'
-export {
   ClientAppError,
   createErrorClient,
   type ErrorClient,
   type ErrorClientOptions,
 } from './client'
 export { code, defineClientPlugin, defineCodes, definePlugin, props } from './define'
+export {
+  errata,
+  type ErrataInstance,
+  type ErrataOptions,
+  type MatchHandlers,
+} from './errata'
 export type {
-  BetterErrorsClientPlugin,
-  BetterErrorsConfig,
-  BetterErrorsContext,
-  BetterErrorsPlugin,
   ClientConfig,
   ClientContext,
   CodeConfig,
   CodeConfigRecord,
   CodesOf,
   DetailsOf,
+  ErrataClientPlugin,
+  ErrataConfig,
+  ErrataContext,
+  ErrataPlugin,
   MatchingAppError,
   MatchingClientAppError,
   MatchingCodes,

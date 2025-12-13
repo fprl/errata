@@ -1,8 +1,8 @@
-import type { BetterErrorsPlugin } from '../src'
+import type { ErrataPlugin } from '../src'
 
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { AppError, betterErrors, code, defineCodes, definePlugin, props } from '../src'
+import { AppError, code, defineCodes, definePlugin, errata, props } from '../src'
 
 // ─── Test Fixtures ────────────────────────────────────────────────────────────
 
@@ -37,12 +37,12 @@ describe('plugin code injection', () => {
     },
   })
 
-  const testPlugin: BetterErrorsPlugin<typeof pluginCodes> = {
+  const testPlugin: ErrataPlugin<typeof pluginCodes> = {
     name: 'test-plugin',
     codes: pluginCodes,
   }
 
-  const errors = betterErrors({
+  const errors = errata({
     codes: baseCodes,
     plugins: [testPlugin] as const,
   })
@@ -70,7 +70,7 @@ describe('plugin code injection', () => {
   it('warns on duplicate plugin names', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    betterErrors({
+    errata({
       codes: baseCodes,
       plugins: [
         { name: 'duplicate', codes: {} },
@@ -87,12 +87,12 @@ describe('plugin code injection', () => {
   it('warns on code collision between plugins and base codes', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    const conflictingPlugin: BetterErrorsPlugin<typeof baseCodes> = {
+    const conflictingPlugin: ErrataPlugin<typeof baseCodes> = {
       name: 'conflicting',
       codes: baseCodes, // Reusing the same codes
     }
 
-    betterErrors({
+    errata({
       codes: baseCodes,
       plugins: [conflictingPlugin] as const,
     })
@@ -130,7 +130,7 @@ describe('plugin code injection', () => {
       },
     })
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [myPlugin] as const,
     })
@@ -153,7 +153,7 @@ describe('plugin onEnsure mapping', () => {
     }
   }
 
-  const stripePlugin: BetterErrorsPlugin = {
+  const stripePlugin: ErrataPlugin = {
     name: 'stripe',
     onEnsure: (error, _ctx) => {
       if (error instanceof StripeError) {
@@ -169,7 +169,7 @@ describe('plugin onEnsure mapping', () => {
     },
   }
 
-  const errors = betterErrors({
+  const errors = errata({
     codes: baseCodes,
     plugins: [stripePlugin] as const,
   })
@@ -187,7 +187,7 @@ describe('plugin onEnsure mapping', () => {
   })
 
   it('can return AppError directly from onEnsure', () => {
-    const directPlugin: BetterErrorsPlugin = {
+    const directPlugin: ErrataPlugin = {
       name: 'direct',
       onEnsure: (error, ctx) => {
         if (error instanceof StripeError) {
@@ -200,7 +200,7 @@ describe('plugin onEnsure mapping', () => {
       },
     }
 
-    const errorsWithDirect = betterErrors({
+    const errorsWithDirect = errata({
       codes: baseCodes,
       plugins: [directPlugin] as const,
     })
@@ -210,12 +210,12 @@ describe('plugin onEnsure mapping', () => {
   })
 
   it('falls back to standard handling when plugins return null', () => {
-    const noopPlugin: BetterErrorsPlugin = {
+    const noopPlugin: ErrataPlugin = {
       name: 'noop',
       onEnsure: () => null,
     }
 
-    const errorsWithNoop = betterErrors({
+    const errorsWithNoop = errata({
       codes: baseCodes,
       plugins: [noopPlugin] as const,
     })
@@ -236,12 +236,12 @@ describe('plugin onEnsure priority chain', () => {
   }
 
   it('stops at first plugin that returns non-null', () => {
-    const pluginA: BetterErrorsPlugin = {
+    const pluginA: ErrataPlugin = {
       name: 'plugin-a',
       onEnsure: () => null, // Passes through
     }
 
-    const pluginB: BetterErrorsPlugin = {
+    const pluginB: ErrataPlugin = {
       name: 'plugin-b',
       onEnsure: (error, _ctx) => {
         if (error instanceof CustomError) {
@@ -251,7 +251,7 @@ describe('plugin onEnsure priority chain', () => {
       },
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [pluginA, pluginB] as const,
     })
@@ -263,7 +263,7 @@ describe('plugin onEnsure priority chain', () => {
   it('short-circuits when first plugin handles error', () => {
     const onEnsureB = vi.fn(() => null)
 
-    const pluginA: BetterErrorsPlugin = {
+    const pluginA: ErrataPlugin = {
       name: 'plugin-a',
       onEnsure: (error) => {
         if (error instanceof CustomError) {
@@ -273,12 +273,12 @@ describe('plugin onEnsure priority chain', () => {
       },
     }
 
-    const pluginB: BetterErrorsPlugin = {
+    const pluginB: ErrataPlugin = {
       name: 'plugin-b',
       onEnsure: onEnsureB,
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [pluginA, pluginB] as const,
     })
@@ -292,19 +292,19 @@ describe('plugin onEnsure priority chain', () => {
   it('handles errors thrown in onEnsure gracefully', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const crashingPlugin: BetterErrorsPlugin = {
+    const crashingPlugin: ErrataPlugin = {
       name: 'crashing',
       onEnsure: () => {
         throw new Error('Plugin crashed!')
       },
     }
 
-    const fallbackPlugin: BetterErrorsPlugin = {
+    const fallbackPlugin: ErrataPlugin = {
       name: 'fallback',
       onEnsure: () => ({ code: 'core.internal_error', details: { fallback: true } }),
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [crashingPlugin, fallbackPlugin] as const,
     })
@@ -330,14 +330,14 @@ describe('plugin onCreate side effects', () => {
   it('calls onCreate hook when creating errors', () => {
     const logSpy = vi.fn()
 
-    const loggingPlugin: BetterErrorsPlugin = {
+    const loggingPlugin: ErrataPlugin = {
       name: 'logging',
       onCreate: (error, _ctx) => {
         logSpy(error.code, error.details)
       },
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [loggingPlugin] as const,
     })
@@ -350,14 +350,14 @@ describe('plugin onCreate side effects', () => {
   it('calls onCreate hook when throwing errors', () => {
     const logSpy = vi.fn()
 
-    const loggingPlugin: BetterErrorsPlugin = {
+    const loggingPlugin: ErrataPlugin = {
       name: 'logging',
       onCreate: (error) => {
         logSpy(error.code)
       },
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [loggingPlugin] as const,
     })
@@ -370,17 +370,17 @@ describe('plugin onCreate side effects', () => {
     const spyA = vi.fn()
     const spyB = vi.fn()
 
-    const pluginA: BetterErrorsPlugin = {
+    const pluginA: ErrataPlugin = {
       name: 'plugin-a',
       onCreate: () => spyA(),
     }
 
-    const pluginB: BetterErrorsPlugin = {
+    const pluginB: ErrataPlugin = {
       name: 'plugin-b',
       onCreate: () => spyB(),
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [pluginA, pluginB] as const,
     })
@@ -395,19 +395,19 @@ describe('plugin onCreate side effects', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const safeSpy = vi.fn()
 
-    const crashingPlugin: BetterErrorsPlugin = {
+    const crashingPlugin: ErrataPlugin = {
       name: 'crashing',
       onCreate: () => {
         throw new Error('Logging crashed!')
       },
     }
 
-    const safePlugin: BetterErrorsPlugin = {
+    const safePlugin: ErrataPlugin = {
       name: 'safe',
       onCreate: () => safeSpy(),
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [crashingPlugin, safePlugin] as const,
     })
@@ -429,7 +429,7 @@ describe('plugin onCreate side effects', () => {
   it('provides ctx.create in onCreate for advanced use cases', () => {
     const createdCodes: string[] = []
 
-    const inspectorPlugin: BetterErrorsPlugin = {
+    const inspectorPlugin: ErrataPlugin = {
       name: 'inspector',
       onCreate: (error, ctx) => {
         // Access config
@@ -438,7 +438,7 @@ describe('plugin onCreate side effects', () => {
       },
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       app: 'test-app',
       codes: baseCodes,
       plugins: [inspectorPlugin] as const,
@@ -453,7 +453,7 @@ describe('plugin onCreate side effects', () => {
   it('provides ctx.ensure in plugin hooks', () => {
     let ensuredFromPlugin: AppError | null = null
 
-    const wrapperPlugin: BetterErrorsPlugin = {
+    const wrapperPlugin: ErrataPlugin = {
       name: 'wrapper',
       onEnsure: (error, ctx) => {
         // Use ctx.ensure to re-normalize (careful with infinite loops in real code!)
@@ -465,7 +465,7 @@ describe('plugin onCreate side effects', () => {
       },
     }
 
-    const errors = betterErrors({
+    const errors = errata({
       codes: baseCodes,
       plugins: [wrapperPlugin] as const,
     })

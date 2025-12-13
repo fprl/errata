@@ -1,13 +1,13 @@
 import type { SerializedError } from './app-error'
 import type {
-  BetterErrorsConfig,
-  BetterErrorsContext,
-  BetterErrorsPlugin,
   CodeOf,
   CodesForTag,
   CodesRecord,
   DetailsArg,
   DetailsOf,
+  ErrataConfig,
+  ErrataContext,
+  ErrataPlugin,
   LogLevel,
   MatchingAppError,
   MergePluginCodes,
@@ -16,6 +16,7 @@ import type {
 } from './types'
 
 import { AppError, isSerializedError, resolveMessage } from './app-error'
+import { LIB_NAME } from './types'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
 type AppErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = AppError<
@@ -54,12 +55,12 @@ export type MatchHandlers<TCodes extends CodesRecord, R> = {
  */
 type MergedCodes<
   TUserCodes extends CodesRecord,
-  TPlugins extends readonly BetterErrorsPlugin<any>[],
+  TPlugins extends readonly ErrataPlugin<any>[],
 > = TUserCodes & MergePluginCodes<TPlugins>
 
-export interface BetterErrorsOptions<
+export interface ErrataOptions<
   TCodes extends CodesRecord,
-  TPlugins extends readonly BetterErrorsPlugin<any>[] = [],
+  TPlugins extends readonly ErrataPlugin<any>[] = [],
 > {
   /** Optional app identifier for logging/observability. */
   app?: string
@@ -81,8 +82,8 @@ export interface BetterErrorsOptions<
   captureStack?: boolean
 }
 
-/** Server-side better-errors instance surface. */
-export interface BetterErrorsInstance<TCodes extends CodesRecord> {
+/** Server-side errata instance surface. */
+export interface ErrataInstance<TCodes extends CodesRecord> {
   /** Base AppError constructor for instanceof checks and extension. */
   AppError: typeof AppError
   /** Create an AppError for a known code, with typed details. */
@@ -148,14 +149,14 @@ export interface BetterErrorsInstance<TCodes extends CodesRecord> {
 }
 
 /**
- * Create the server-side better-errors instance.
+ * Create the server-side errata instance.
  * - Attaches typed helpers (create/throw/ensure/is/match) and HTTP/serialization helpers.
  * - Accepts per-code configs plus defaults; `env` stays server-side and is not serialized unless a plugin adds it.
  * - Supports plugins for code injection, error mapping, and side effects.
  */
-export function betterErrors<
+export function errata<
   TCodes extends CodesRecord,
-  TPlugins extends readonly BetterErrorsPlugin<any>[] = [],
+  TPlugins extends readonly ErrataPlugin<any>[] = [],
 >({
   app,
   env,
@@ -165,7 +166,7 @@ export function betterErrors<
   defaultRetryable = false,
   plugins = [] as unknown as TPlugins,
   captureStack = true,
-}: BetterErrorsOptions<TCodes, TPlugins>): BetterErrorsInstance<MergedCodes<TCodes, TPlugins>> {
+}: ErrataOptions<TCodes, TPlugins>): ErrataInstance<MergedCodes<TCodes, TPlugins>> {
   type AllCodes = MergedCodes<TCodes, TPlugins>
   type AllCodeOf = CodeOf<AllCodes>
 
@@ -179,7 +180,7 @@ export function betterErrors<
   for (const plugin of plugins) {
     // Check for duplicate plugin names
     if (pluginNames.has(plugin.name)) {
-      console.warn(`better-errors: Duplicate plugin name "${plugin.name}" detected`)
+      console.warn(`${LIB_NAME}: Duplicate plugin name "${plugin.name}" detected`)
     }
     pluginNames.add(plugin.name)
 
@@ -187,7 +188,7 @@ export function betterErrors<
     if (plugin.codes) {
       for (const code of Object.keys(plugin.codes)) {
         if (code in mergedCodes) {
-          console.warn(`better-errors: Plugin "${plugin.name}" defines code "${code}" which already exists`)
+          console.warn(`${LIB_NAME}: Plugin "${plugin.name}" defines code "${code}" which already exists`)
         }
       }
       mergedCodes = { ...mergedCodes, ...plugin.codes } as AllCodes
@@ -197,7 +198,7 @@ export function betterErrors<
   const fallbackCode = Object.keys(mergedCodes)[0] as AllCodeOf | undefined
 
   // Build the config object for plugin context
-  const config: BetterErrorsConfig = {
+  const config: ErrataConfig = {
     app,
     env,
     defaultStatus,
@@ -206,11 +207,11 @@ export function betterErrors<
   }
 
   // Forward declarations for mutual recursion (ensure needs create, create runs hooks)
-  let createFn: BetterErrorsInstance<AllCodes>['create']
-  let ensureFn: BetterErrorsInstance<AllCodes>['ensure']
+  let createFn: ErrataInstance<AllCodes>['create']
+  let ensureFn: ErrataInstance<AllCodes>['ensure']
 
   // Build the plugin context (lazy to avoid circular refs during init)
-  const getContext = (): BetterErrorsContext<AllCodes> => ({
+  const getContext = (): ErrataContext<AllCodes> => ({
     create: (code, details) => createFn(code as any, details),
     ensure: (err, fallback) => ensureFn(err, fallback as any),
     config,
@@ -252,7 +253,7 @@ export function betterErrors<
           plugin.onCreate(error, ctx as any)
         }
         catch (hookError) {
-          console.error(`better-errors: plugin "${plugin.name}" crashed in onCreate`, hookError)
+          console.error(`${LIB_NAME}: plugin "${plugin.name}" crashed in onCreate`, hookError)
         }
       }
     }
@@ -339,7 +340,7 @@ export function betterErrors<
           }
         }
         catch (hookError) {
-          console.error(`better-errors: plugin "${plugin.name}" crashed in onEnsure`, hookError)
+          console.error(`${LIB_NAME}: plugin "${plugin.name}" crashed in onEnsure`, hookError)
         }
       }
     }
@@ -359,8 +360,8 @@ export function betterErrors<
   }
 
   // Alias for the public interface
-  const create = createFn as BetterErrorsInstance<AllCodes>['create']
-  const ensure = ensureFn as BetterErrorsInstance<AllCodes>['ensure']
+  const create = createFn as ErrataInstance<AllCodes>['create']
+  const ensure = ensureFn as ErrataInstance<AllCodes>['ensure']
 
   /** Promise helper that returns a `[data, error]` tuple without try/catch. */
   const safe = async <T>(

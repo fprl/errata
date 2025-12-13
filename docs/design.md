@@ -1,6 +1,6 @@
-## better-errors – Design & Usage
+## Errata – Design & Usage
 
-Better Errors is a throw-first, typed error model for TypeScript apps.
+Errata is a throw-first, typed error registry for TypeScript apps.
 
 - Central **codes registry** with `defineCodes` + `code` + `props`
 - Same types on **server and client**
@@ -16,7 +16,7 @@ Flat or one-level nested map that flattens to `"domain.code"` keys.
 
 ```ts
 // shared/error-config.ts
-import { code, defineCodes, props } from 'better-errors'
+import { code, defineCodes, props } from 'errata'
 
 export const codes = defineCodes({
   core: {
@@ -49,13 +49,13 @@ Notes:
 
 ---
 
-## 2. Server: `betterErrors(...)`
+## 2. Server: `errata(...)`
 
 ```ts
-import { betterErrors } from 'better-errors'
+import { errata } from 'errata'
 import { codes } from './shared/error-config'
 
-export const errors = betterErrors({
+export const errors = errata({
   app: 'my-app',
   env: process.env.NODE_ENV,
   defaultStatus: 500,
@@ -88,7 +88,7 @@ errors.match(err, {
 
 ```ts
 import type { errors } from '../server/errors'
-import { createErrorClient } from 'better-errors'
+import { createErrorClient } from 'errata'
 
 const client = createErrorClient<typeof errors>()
 

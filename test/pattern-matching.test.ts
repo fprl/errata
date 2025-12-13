@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { betterErrors, code, defineCodes, props } from '../src'
+import { code, defineCodes, errata, props } from '../src'
 
 /**
  * Extended codes for pattern matching tests.
@@ -59,7 +59,7 @@ const codes = defineCodes({
   },
 } as const)
 
-const errors = betterErrors({
+const errors = errata({
   app: 'test-app',
   codes,
 })

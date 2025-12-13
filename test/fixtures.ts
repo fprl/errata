@@ -1,4 +1,4 @@
-import { betterErrors, code, defineCodes, props } from '../src'
+import { code, defineCodes, errata, props } from '../src'
 
 export const codes = defineCodes({
   core: {
@@ -65,7 +65,7 @@ export const codes = defineCodes({
 
 export type ErrorCode = keyof typeof codes
 
-export const errors = betterErrors({
+export const errors = errata({
   app: 'test-app',
   env: 'test',
   defaultStatus: 500,

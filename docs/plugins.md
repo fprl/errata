@@ -1,8 +1,8 @@
-# Better Errors: Plugin System Specification
+# Errata: Plugin System Specification
 
 ## 1\. Architectural Overview
 
-The plugin system allows developers to extend `better-errors` with reusable logic bundles. Plugins can:
+The plugin system allows developers to extend `errata` with reusable logic bundles. Plugins can:
 
 1.  **Inject Codes:** Add new error codes to the registry types automatically.
 2.  **Intercept & Map:** Translate external errors (Stripe, Zod, Backend API) into AppErrors via `ensure`.
@@ -15,12 +15,12 @@ The system exists on both the **Server** (Node.js/Edge) and the **Client** (Brow
 
 ## 2\. Server-Side Plugin Architecture
 
-### Interface: `BetterErrorsPlugin`
+### Interface: `ErrataPlugin`
 
 A plugin is an object (usually returned by a factory function) with the following signature:
 
 ```ts
-interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord> {
+interface ErrataPlugin<TPluginCodes extends CodeConfigRecord> {
   /** unique name for debugging/deduplication */
   name: string
 
@@ -34,22 +34,22 @@ interface BetterErrorsPlugin<TPluginCodes extends CodeConfigRecord> {
    * Hook: Input Mapping
    * Runs inside `errors.ensure(err)`.
    * @param error - The raw unknown error being ensured.
-   * @param ctx - The betterErrors instance (restricted context).
+   * @param ctx - The errata instance (restricted context).
    * @returns AppError instance OR { code, details } OR null (to pass).
    */
-  onEnsure?: (error: unknown, ctx: BetterErrorsContext) => AppError | { code: string, details?: any } | null
+  onEnsure?: (error: unknown, ctx: ErrataContext) => AppError | { code: string, details?: any } | null
 
   /**
    * Hook: Side Effects
    * Runs synchronously inside `errors.create()` (and by extension `throw`).
    * @param error - The fully formed AppError instance.
-   * @param ctx - The betterErrors instance.
+   * @param ctx - The errata instance.
    */
-  onCreate?: (error: AppError, ctx: BetterErrorsContext) => void
+  onCreate?: (error: AppError, ctx: ErrataContext) => void
 }
 ```
 
-### The `BetterErrorsContext` (`ctx`)
+### The `ErrataContext` (`ctx`)
 
 Plugins need access to the library's tools to create errors or check configs.
 
@@ -59,7 +59,7 @@ Plugins need access to the library's tools to create errors or check configs.
 
 ### Type Inference Requirements
 
-The `betterErrors` factory must be updated to accept a `plugins` array.
+The `errata` factory must be updated to accept a `plugins` array.
 
   * **Generics:** It must accept a tuple of plugins `TPlugins`.
   * **Inference:** The returned instance type must include the intersection of `UserCodes & Plugin1Codes & Plugin2Codes`.
@@ -80,11 +80,11 @@ The `betterErrors` factory must be updated to accept a `plugins` array.
       * Instantiate the `AppError`.
       * Iterate through `plugins`.
       * Call `plugin.onCreate(error, ctx)` for **all** plugins (side effects are independent).
-      * Wrap each call in try/catch; if an error occurs, `console.error('better-errors: plugin [name] crashed in onCreate', err)`.
+      * Wrap each call in try/catch; if an error occurs, `console.error('errata: plugin [name] crashed in onCreate', err)`.
 
 ### Plugin Validation (at initialization)
 
-When `betterErrors({ plugins: [] })` initializes:
+When `errata({ plugins: [] })` initializes:
 
   * Check for duplicate `plugin.name` values and warn.
   * Check if any plugin codes overlap with each other or the user's base codes and warn.
@@ -93,12 +93,12 @@ When `betterErrors({ plugins: [] })` initializes:
 
 ## 3\. Client-Side Plugin Architecture
 
-### Interface: `BetterErrorsClientPlugin`
+### Interface: `ErrataClientPlugin`
 
 The client needs a lighter plugin system, primarily for adapting network payloads.
 
 ```ts
-interface BetterErrorsClientPlugin {
+interface ErrataClientPlugin {
   name: string
 
   /**
@@ -137,7 +137,7 @@ Since you know the internal logic, here is the list of test cases required to va
 1.  **Code Injection & Inference:**
 
       * Define a plugin with a unique code (e.g., `plugin.test_error`).
-      * Initialize `betterErrors` with that plugin.
+      * Initialize `errata` with that plugin.
       * **Runtime:** Assert `errors.create('plugin.test_error')` works.
       * **Types:** (Verified via TS compilation) Assert that the code appears in the union.
 

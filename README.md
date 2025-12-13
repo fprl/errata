@@ -40,6 +40,10 @@ import { code, errata, props } from 'errata'
 
 const errors = errata({
   codes: {
+    'app.internal_error': {
+      status: 500,
+      message: 'Internal error',
+    },
     'user.not_found': code({
       status: 404,
       message: ({ details }) => `User ${details.userId} not found`,
@@ -69,6 +73,12 @@ errors.match(e, {
 
 // Check tags
 if (errors.hasTag(e, 'security')) { ... }
+
+// Other helpers
+errors.ensure(e, 'user.not_found') // throws if not this error
+const [data, err] = await errors.safe(() => fetchUser(id)) // typed [result, error] tuple
+const json = errors.serialize(e) // for sending across boundaries
+const err = errors.deserialize(json) // restore on other side
 ```
 
 ## Plugins

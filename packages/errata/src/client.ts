@@ -21,7 +21,7 @@ type InternalClientCode = 'be.unknown_error' | 'be.deserialization_failed' | 'be
 type ClientCode<TCodes extends CodesRecord> = CodeOf<TCodes> | InternalClientCode
 
 export class ClientAppError<C extends string = string, D = unknown> extends Error {
-  readonly name = 'AppError'
+  override readonly name = 'ErrataError'
   readonly code: C
   readonly status?: number
   readonly retryable?: boolean

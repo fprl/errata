@@ -19,7 +19,7 @@ export interface SerializedError<C extends string = string, D = unknown> {
 }
 
 export class AppError<C extends string = string, D = unknown> extends Error {
-  readonly name = 'AppError'
+  override readonly name = 'ErrataError'
   readonly app?: string
   readonly env?: string
   readonly code: C
@@ -29,7 +29,7 @@ export class AppError<C extends string = string, D = unknown> extends Error {
   readonly logLevel: LogLevel
   readonly tags: readonly string[]
   readonly details: D
-  readonly cause?: unknown
+  override readonly cause?: unknown
 
   constructor(args: {
     app?: string

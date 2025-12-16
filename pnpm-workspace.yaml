@@ -1,11 +1,15 @@
+catalogMode: prefer
+
+ignoreWorkspaceRootCheck: false
+shellEmulator: true
+
+trustPolicy: no-downgrade
+
 packages:
   - playground
   - docs
   - packages/*
   - examples/*
-
-ignoreWorkspaceRootCheck: false
-shellEmulator: true
 
 catalogs:
   cli:

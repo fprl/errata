@@ -1,7 +1,8 @@
 {
-  "name": "errata",
+  "name": "root",
   "type": "module",
   "version": "0.0.0",
+  "private": true,
   "packageManager": "pnpm@10.20.0",
   "description": "A typed error registry for TypeScript. Errors are data—define them like it.",
   "author": "Franco P. Romano L. ",
@@ -12,52 +13,21 @@
     "url": "git+https://github.com/fprl/errata.git"
   },
   "bugs": "https://github.com/fprl/errata/issues",
-  "keywords": [],
-  "sideEffects": false,
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    },
-    "./client": {
-      "types": "./dist/client.d.mts",
-      "import": "./dist/client.mjs"
-    },
-    "./package.json": "./package.json"
-  },
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
     "lint": "eslint",
-    "prepublishOnly": "pnpm build",
-    "release": "bumpp",
-    "start": "tsx src/index.ts",
-    "test": "vitest",
-    "typecheck": "tsc",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
     "prepare": "simple-git-hooks"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:cli",
-    "@antfu/utils": "catalog:inlined",
-    "@types/node": "catalog:types",
     "bumpp": "catalog:cli",
     "eslint": "catalog:cli",
     "lint-staged": "catalog:cli",
     "simple-git-hooks": "catalog:cli",
-    "tinyexec": "catalog:testing",
-    "tsdown": "catalog:cli",
-    "tsx": "catalog:cli",
-    "typescript": "catalog:cli",
-    "vite": "catalog:cli",
-    "vitest": "catalog:testing",
-    "vitest-package-exports": "catalog:testing",
-    "yaml": "catalog:testing"
+    "typescript": "catalog:cli"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm i --frozen-lockfile --ignore-scripts --offline && npx lint-staged"

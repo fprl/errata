@@ -5,7 +5,7 @@
 The plugin system allows developers to extend `errata` with reusable logic bundles. Plugins can:
 
 1.  **Inject Codes:** Add new error codes to the registry types automatically.
-2.  **Intercept & Map:** Translate external errors (Stripe, Zod, Backend API) into AppErrors via `ensure`.
+2.  **Intercept & Map:** Translate external errors (Stripe, Zod, Backend API) into ErrataErrors via `ensure`.
 3.  **Observe:** Listen to error creation for logging/monitoring via `onCreate`.
 4.  **Adapt (Client):** Handle custom payload formats on the client via `deserialize`.
 
@@ -35,17 +35,17 @@ interface ErrataPlugin<TPluginCodes extends CodeConfigRecord> {
    * Runs inside `errors.ensure(err)`.
    * @param error - The raw unknown error being ensured.
    * @param ctx - The errata instance (restricted context).
-   * @returns AppError instance OR { code, details } OR null (to pass).
+   * @returns ErrataError instance OR { code, details } OR null (to pass).
    */
-  onEnsure?: (error: unknown, ctx: ErrataContext) => AppError | { code: string, details?: any } | null
+  onEnsure?: (error: unknown, ctx: ErrataContext) => ErrataError | { code: string, details?: any } | null
 
   /**
    * Hook: Side Effects
    * Runs synchronously inside `errors.create()` (and by extension `throw`).
-   * @param error - The fully formed AppError instance.
+   * @param error - The fully formed ErrataError instance.
    * @param ctx - The errata instance.
    */
-  onCreate?: (error: AppError, ctx: ErrataContext) => void
+  onCreate?: (error: ErrataError, ctx: ErrataContext) => void
 }
 ```
 
@@ -53,7 +53,7 @@ interface ErrataPlugin<TPluginCodes extends CodeConfigRecord> {
 
 Plugins need access to the library's tools to create errors or check configs.
 
-  * `ctx.create(code, details)`: To manufacture a valid AppError.
+  * `ctx.create(code, details)`: To manufacture a valid ErrataError.
   * `ctx.ensure(err, fallbackCode?)`: To normalize unknown errors (useful for wrapping/re-normalizing).
   * `ctx.config`: Access to `env`, `app` name, etc.
 
@@ -72,12 +72,12 @@ The `errata` factory must be updated to accept a `plugins` array.
       * Iterate through `plugins` in order.
       * Call `plugin.onEnsure(err, ctx)`.
       * **Stop** at the first plugin that returns a non-null value.
-      * Use that value to return the final `AppError`.
+      * Use that value to return the final `ErrataError`.
       * *Fallback:* If no plugin handles it, proceed with standard normalization (check `instanceof Error`, etc.).
 
 2.  **`errors.create(...)` Flow:**
 
-      * Instantiate the `AppError`.
+      * Instantiate the `ErrataError`.
       * Iterate through `plugins`.
       * Call `plugin.onCreate(error, ctx)` for **all** plugins (side effects are independent).
       * Wrap each call in try/catch; if an error occurs, `console.error('errata: plugin [name] crashed in onCreate', err)`.
@@ -106,15 +106,15 @@ interface ErrataClientPlugin {
    * Runs inside `client.deserialize(payload)`.
    * @param payload - The raw input (usually JSON).
    * @param ctx - Client context.
-   * @returns ClientAppError instance OR null.
+   * @returns ErrataClientError instance OR null.
    */
-  onDeserialize?: (payload: unknown, ctx: ClientContext) => ClientAppError | null
+  onDeserialize?: (payload: unknown, ctx: ClientContext) => ErrataClientError | null
 
   /**
    * Hook: Side Effects
    * Runs inside `client.create()` or when `deserialize` succeeds.
    */
-  onCreate?: (error: ClientAppError, ctx: ClientContext) => void
+  onCreate?: (error: ErrataClientError, ctx: ClientContext) => void
 }
 ```
 
@@ -146,7 +146,7 @@ Since you know the internal logic, here is the list of test cases required to va
       * Mock a "Third Party Error" class (e.g., `class StripeError extends Error { code = 'card_declined' }`).
       * Create a plugin that detects `StripeError` in `onEnsure` and maps it to `billing.declined`.
       * Call `errors.ensure(new StripeError())`.
-      * **Assert:** The returned object is an `AppError` with code `billing.declined` and correct details.
+      * **Assert:** The returned object is an `ErrataError` with code `billing.declined` and correct details.
 
 3.  **`onEnsure` Priority/Chain:**
 
@@ -169,9 +169,9 @@ Since you know the internal logic, here is the list of test cases required to va
 5.  **`onDeserialize` Adaptation (The "RFC 7807" Case):**
 
       * Create a payload that **fails** standard validation (e.g., missing `code`, but has `type` and `title`).
-      * Create a client plugin that detects `type`, and maps it to a `ClientAppError`.
+      * Create a client plugin that detects `type`, and maps it to a `ErrataClientError`.
       * Call `client.deserialize(customPayload)`.
-      * **Assert:** It returns a valid `ClientAppError` instead of `be.deserialization_failed`.
+      * **Assert:** It returns a valid `ErrataClientError` instead of `be.deserialization_failed`.
 
 6.  **`onCreate` Client Logging:**
 

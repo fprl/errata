@@ -1,17 +1,17 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { AppError, code, defineCodes, errata, props } from '../src'
+import { code, defineCodes, errata, ErrataError, props } from '../src'
 import { errors } from './fixtures'
 
 describe('errata basics', () => {
-  it('creates AppError with resolved message and typed details', () => {
+  it('creates ErrataError with resolved message and typed details', () => {
     const error = errors.create('billing.payment_failed', {
       provider: 'stripe',
       amount: 42,
     })
 
-    expect(error).toBeInstanceOf(AppError)
-    expect(error).toBeInstanceOf(errors.AppError)
+    expect(error).toBeInstanceOf(ErrataError)
+    expect(error).toBeInstanceOf(errors.ErrataError)
     expect(error.code).toBe('billing.payment_failed')
     expect(error.message).toBe('Payment failed for stripe (42)')
     expect(error.status).toBe(402)
@@ -23,10 +23,10 @@ describe('errata basics', () => {
     }>()
   })
 
-  it('throws AppError via throw helper', () => {
+  it('throws ErrataError via throw helper', () => {
     expect(() =>
       errors.throw('auth.invalid_token', { reason: 'expired' }),
-    ).toThrowError(AppError)
+    ).toThrowError(ErrataError)
   })
 
   it('wraps unknown errors with ensure and fallback code', () => {
@@ -62,7 +62,7 @@ describe('errata basics', () => {
     expect(json.tags).toEqual(['billing', 'payments'])
 
     const restored = errors.deserialize(json)
-    expect(restored).toBeInstanceOf(errors.AppError)
+    expect(restored).toBeInstanceOf(errors.ErrataError)
     expect(restored.message).toContain('Payment failed for adyen (12)')
   })
 
@@ -181,16 +181,16 @@ describe('errata basics', () => {
       }
     })
 
-    it('normalizes rejected promises into AppError tuple', async () => {
+    it('normalizes rejected promises into ErrataError tuple', async () => {
       const failingPromise: Promise<number> = Promise.reject(new Error('db down'))
       const [value, err] = await errors.safe(failingPromise)
 
       expect(value).toBeNull()
-      expect(err).toBeInstanceOf(errors.AppError)
+      expect(err).toBeInstanceOf(errors.ErrataError)
       expect(err?.code).toBe('core.internal_error')
 
       if (err) {
-        expectTypeOf(err).toMatchTypeOf<InstanceType<typeof errors.AppError>>()
+        expectTypeOf(err).toMatchTypeOf<InstanceType<typeof errors.ErrataError>>()
         expectTypeOf(value).toEqualTypeOf<null>()
       }
       else {

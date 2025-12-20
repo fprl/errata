@@ -9,17 +9,17 @@ import type {
   ErrataContext,
   ErrataPlugin,
   LogLevel,
-  MatchingAppError,
+  MatchingErrataError,
   MergePluginCodes,
   Pattern,
   PatternInput,
 } from './types'
 
-import { AppError, isSerializedError, resolveMessage } from './errata-error'
+import { ErrataError, isSerializedError, resolveMessage } from './errata-error'
 import { LIB_NAME } from './types'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
-type AppErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = AppError<
+type ErrataErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = ErrataError<
   C,
   DetailsOf<TCodes, C>
 >
@@ -29,10 +29,10 @@ type DetailsParam<TCodes extends CodesRecord, C extends CodeOf<TCodes>>
     ? [details?: DetailsArg<TCodes, C>]
     : [details: DetailsArg<TCodes, C>]
 
-type TaggedAppError<
+type TaggedErrataError<
   TCodes extends CodesRecord,
   TTag extends string,
-> = MatchingAppError<TCodes, Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>>
+> = MatchingErrataError<TCodes, Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>>
 
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 
@@ -42,9 +42,9 @@ type TaggedAppError<
  * Values are callbacks receiving the narrowed error type.
  */
 export type MatchHandlers<TCodes extends CodesRecord, R> = {
-  [K in Pattern<TCodes>]?: (e: MatchingAppError<TCodes, K>) => R
+  [K in Pattern<TCodes>]?: (e: MatchingErrataError<TCodes, K>) => R
 } & {
-  default?: (e: AppErrorFor<TCodes, CodeOf<TCodes>>) => R
+  default?: (e: ErrataErrorFor<TCodes, CodeOf<TCodes>>) => R
 }
 
 // ─── Plugin Code Merging ──────────────────────────────────────────────────────
@@ -84,28 +84,28 @@ export interface ErrataOptions<
 
 /** Server-side errata instance surface. */
 export interface ErrataInstance<TCodes extends CodesRecord> {
-  /** Base AppError constructor for instanceof checks and extension. */
-  AppError: typeof AppError
-  /** Create an AppError for a known code, with typed details. */
+  /** Base ErrataError constructor for instanceof checks and extension. */
+  ErrataError: typeof ErrataError
+  /** Create an ErrataError for a known code, with typed details. */
   create: <C extends CodeOf<TCodes>>(
     code: C,
     ...details: DetailsParam<TCodes, C>
-  ) => AppErrorFor<TCodes, C>
-  /** Create and throw an AppError for a known code. */
+  ) => ErrataErrorFor<TCodes, C>
+  /** Create and throw an ErrataError for a known code. */
   throw: <C extends CodeOf<TCodes>>(
     code: C,
     ...details: DetailsParam<TCodes, C>
   ) => never
-  /** Normalize unknown errors into AppError, using an optional fallback code. */
+  /** Normalize unknown errors into ErrataError, using an optional fallback code. */
   ensure: (
     err: unknown,
     fallbackCode?: CodeOf<TCodes>,
-  ) => AppErrorFor<TCodes, CodeOf<TCodes>>
+  ) => ErrataErrorFor<TCodes, CodeOf<TCodes>>
   /** Promise helper that returns a `[data, error]` tuple without try/catch. */
   safe: <T>(
     promise: Promise<T>,
   ) => Promise<
-    [data: T, error: null] | [data: null, error: AppErrorFor<TCodes, CodeOf<TCodes>>]
+    [data: T, error: null] | [data: null, error: ErrataErrorFor<TCodes, CodeOf<TCodes>>]
   >
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
@@ -114,7 +114,7 @@ export interface ErrataInstance<TCodes extends CodesRecord> {
   is: <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
     err: unknown,
     pattern: P,
-  ) => err is MatchingAppError<TCodes, P>
+  ) => err is MatchingErrataError<TCodes, P>
   /**
    * Pattern matcher over codes with priority: exact match > longest wildcard > default.
    * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
@@ -127,15 +127,15 @@ export interface ErrataInstance<TCodes extends CodesRecord> {
   hasTag: <TTag extends string>(
     err: unknown,
     tag: TTag,
-  ) => err is TaggedAppError<TCodes, TTag>
-  /** Serialize an AppError for transport (server → client). */
+  ) => err is TaggedErrataError<TCodes, TTag>
+  /** Serialize an ErrataError for transport (server → client). */
   serialize: <C extends CodeOf<TCodes>>(
-    err: AppErrorFor<TCodes, C>,
+    err: ErrataErrorFor<TCodes, C>,
   ) => SerializedError<C, DetailsOf<TCodes, C>>
-  /** Deserialize a payload back into an AppError (server context). */
+  /** Deserialize a payload back into an ErrataError (server context). */
   deserialize: <C extends CodeOf<TCodes>>(
     json: SerializedError<C, DetailsOf<TCodes, C>>,
-  ) => AppErrorFor<TCodes, C>
+  ) => ErrataErrorFor<TCodes, C>
   /** HTTP helpers (status + `{ error }` body). */
   http: {
     /** Convert unknown errors to HTTP-friendly `{ status, body: { error } }`. */
@@ -217,11 +217,11 @@ export function errata<
     config,
   })
 
-  /** Create an AppError for a known code, with typed details. */
+  /** Create an ErrataError for a known code, with typed details. */
   createFn = <C extends AllCodeOf>(
     code: C,
     ...[details]: DetailsParam<AllCodes, C>
-  ): AppErrorFor<AllCodes, C> => {
+  ): ErrataErrorFor<AllCodes, C> => {
     const codeConfig = mergedCodes[code]
     if (!codeConfig) {
       throw new Error(`Unknown error code: ${String(code)}`)
@@ -231,7 +231,7 @@ export function errata<
       details === undefined ? codeConfig.details : details
     ) as DetailsOf<AllCodes, C>
 
-    const error = new AppError<C, DetailsOf<AllCodes, C>>({
+    const error = new ErrataError<C, DetailsOf<AllCodes, C>>({
       app,
       env,
       code,
@@ -261,7 +261,7 @@ export function errata<
     return error
   }
 
-  /** Create and throw an AppError for a known code. */
+  /** Create and throw an ErrataError for a known code. */
   const throwFn = <C extends AllCodeOf>(
     code: C,
     ...details: DetailsParam<AllCodes, C>
@@ -271,9 +271,9 @@ export function errata<
     throw err
   }
 
-  /** Serialize an AppError for transport (server → client). */
+  /** Serialize an ErrataError for transport (server → client). */
   const serialize = <C extends AllCodeOf>(
-    err: AppErrorFor<AllCodes, C>,
+    err: ErrataErrorFor<AllCodes, C>,
   ): SerializedError<C, DetailsOf<AllCodes, C>> => {
     const base = err.toJSON()
     const json: SerializedError<C, DetailsOf<AllCodes, C>> = { ...base }
@@ -286,10 +286,10 @@ export function errata<
     return json
   }
 
-  /** Deserialize a payload back into an AppError (server context). */
+  /** Deserialize a payload back into an ErrataError (server context). */
   const deserialize = <C extends AllCodeOf>(
     json: SerializedError<C, DetailsOf<AllCodes, C>>,
-  ): AppErrorFor<AllCodes, C> => {
+  ): ErrataErrorFor<AllCodes, C> => {
     const payload = json
     const codeConfig = mergedCodes[payload.code as AllCodeOf]
     const message
@@ -298,7 +298,7 @@ export function errata<
           ? resolveMessage(codeConfig.message, payload.details as any)
           : String(payload.code))
 
-    return new AppError<C, DetailsOf<AllCodes, C>>({
+    return new ErrataError<C, DetailsOf<AllCodes, C>>({
       app: payload.app ?? app,
       code: payload.code,
       message,
@@ -314,14 +314,14 @@ export function errata<
     })
   }
 
-  /** Normalize unknown errors into AppError, using an optional fallback code. */
+  /** Normalize unknown errors into ErrataError, using an optional fallback code. */
   ensureFn = (
     err: unknown,
     fallback?: AllCodeOf,
-  ): AppErrorFor<AllCodes, AllCodeOf> => {
-    // If already an AppError, return as-is
-    if (err instanceof AppError) {
-      return err as AppErrorFor<AllCodes, AllCodeOf>
+  ): ErrataErrorFor<AllCodes, AllCodeOf> => {
+    // If already an ErrataError, return as-is
+    if (err instanceof ErrataError) {
+      return err as ErrataErrorFor<AllCodes, AllCodeOf>
     }
 
     // Try plugin onEnsure hooks (first non-null wins)
@@ -331,11 +331,11 @@ export function errata<
         try {
           const result = plugin.onEnsure(err, ctx as any)
           if (result !== null) {
-            // If result is already an AppError, return it
-            if (result instanceof AppError) {
-              return result as AppErrorFor<AllCodes, AllCodeOf>
+            // If result is already an ErrataError, return it
+            if (result instanceof ErrataError) {
+              return result as ErrataErrorFor<AllCodes, AllCodeOf>
             }
-            // Otherwise it's { code, details } - create an AppError
+            // Otherwise it's { code, details } - create an ErrataError
             return createFn(result.code as AllCodeOf, result.details)
           }
         }
@@ -367,7 +367,7 @@ export function errata<
   const safe = async <T>(
     promise: Promise<T>,
   ): Promise<
-    [data: T, error: null] | [data: null, error: AppErrorFor<AllCodes, AllCodeOf>]
+    [data: T, error: null] | [data: null, error: ErrataErrorFor<AllCodes, AllCodeOf>]
   > => {
     try {
       const data = await promise
@@ -382,8 +382,8 @@ export function errata<
   const is = <P extends PatternInput<AllCodes> | readonly PatternInput<AllCodes>[]>(
     err: unknown,
     pattern: P,
-  ): err is MatchingAppError<AllCodes, P> => {
-    if (!(err instanceof AppError))
+  ): err is MatchingErrataError<AllCodes, P> => {
+    if (!(err instanceof ErrataError))
       return false
 
     const patterns = Array.isArray(pattern) ? pattern : [pattern]
@@ -395,23 +395,23 @@ export function errata<
     err: unknown,
     handlers: MatchHandlers<AllCodes, R>,
   ): R | undefined => {
-    const appErr = err instanceof AppError ? err : ensure(err)
+    const errataErr = err instanceof ErrataError ? err : ensure(err)
     const handlerKeys = Object.keys(handlers).filter(k => k !== 'default')
 
-    const matchedPattern = findBestMatchingPattern(appErr.code, handlerKeys)
+    const matchedPattern = findBestMatchingPattern(errataErr.code, handlerKeys)
     const handler = matchedPattern
       ? (handlers as any)[matchedPattern]
       : (handlers as any).default
 
-    return handler ? handler(appErr) : undefined
+    return handler ? handler(errataErr) : undefined
   }
 
   /** Check whether an error carries a given tag. */
   const hasTag = <TTag extends string>(
     err: unknown,
     tag: TTag,
-  ): err is TaggedAppError<AllCodes, TTag> => {
-    if (!(err instanceof AppError))
+  ): err is TaggedErrataError<AllCodes, TTag> => {
+    if (!(err instanceof ErrataError))
       return false
     return (err.tags ?? []).includes(tag)
   }
@@ -431,11 +431,11 @@ export function errata<
   }
 
   return {
-    AppError,
+    ErrataError,
     create,
-    /** Create and throw an AppError for a known code. */
+    /** Create and throw an ErrataError for a known code. */
     throw: throwFn,
-    /** Normalize unknown errors into AppError, using an optional fallback code. */
+    /** Normalize unknown errors into ErrataError, using an optional fallback code. */
     ensure,
     /** Promise helper that returns a `[data, error]` tuple without try/catch. */
     safe,
@@ -445,9 +445,9 @@ export function errata<
     match,
     /** Check whether an error carries a given tag. */
     hasTag,
-    /** Serialize an AppError for transport (server → client). */
+    /** Serialize an ErrataError for transport (server → client). */
     serialize,
-    /** Deserialize a payload back into an AppError (server context). */
+    /** Deserialize a payload back into an ErrataError (server context). */
     deserialize,
     /** HTTP helpers (status + `{ error }` body). */
     http,

@@ -173,7 +173,7 @@ describe('pattern Matching: is() method', () => {
   })
 
   describe('edge cases', () => {
-    it('returns false for non-AppError values', () => {
+    it('returns false for non-ErrataError values', () => {
       expect(errors.is(new Error('boom'), 'auth.*')).toBe(false)
       expect(errors.is(null, 'auth.*')).toBe(false)
       expect(errors.is(undefined, 'auth.*')).toBe(false)
@@ -299,7 +299,7 @@ describe('pattern Matching: match() method', () => {
   })
 
   describe('normalizes unknown errors', () => {
-    it('wraps non-AppError and routes to default', () => {
+    it('wraps non-ErrataError and routes to default', () => {
       const unknownErr = new Error('boom')
 
       const result = errors.match(unknownErr, {

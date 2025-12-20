@@ -18,7 +18,7 @@ export interface SerializedError<C extends string = string, D = unknown> {
   details?: D
 }
 
-export class AppError<C extends string = string, D = unknown> extends Error {
+export class ErrataError<C extends string = string, D = unknown> extends Error {
   override readonly name = 'ErrataError'
   readonly app?: string
   readonly env?: string

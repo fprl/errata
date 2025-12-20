@@ -1,6 +1,6 @@
 export {
-  ClientAppError,
   createErrorClient,
+  ErrataClientError,
   type ErrorClient,
   type ErrorClientOptions,
 } from './client'
@@ -11,7 +11,7 @@ export {
   type ErrataOptions,
   type MatchHandlers,
 } from './errata'
-export { AppError, type SerializedError } from './errata-error'
+export { ErrataError, type SerializedError } from './errata-error'
 export type {
   ClientConfig,
   ClientContext,
@@ -23,9 +23,9 @@ export type {
   ErrataConfig,
   ErrataContext,
   ErrataPlugin,
-  MatchingAppError,
-  MatchingClientAppError,
   MatchingCodes,
+  MatchingErrataClientError,
+  MatchingErrataError,
   MergePluginCodes,
   MessageResolver,
   Pattern,

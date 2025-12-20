@@ -2,7 +2,7 @@ import type { ErrataPlugin } from '../src'
 
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { AppError, code, defineCodes, definePlugin, errata, props } from '../src'
+import { code, defineCodes, definePlugin, errata, ErrataError, props } from '../src'
 
 // ─── Test Fixtures ────────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ describe('plugin code injection', () => {
   it('can create errors with plugin-injected codes', () => {
     const err = errors.create('plugin.test_error')
 
-    expect(err).toBeInstanceOf(AppError)
+    expect(err).toBeInstanceOf(ErrataError)
     expect(err.code).toBe('plugin.test_error')
     expect(err.message).toBe('I am a teapot')
     expect(err.status).toBe(418)
@@ -174,11 +174,11 @@ describe('plugin onEnsure mapping', () => {
     plugins: [stripePlugin] as const,
   })
 
-  it('maps third-party errors to AppError via onEnsure', () => {
+  it('maps third-party errors to ErrataError via onEnsure', () => {
     const stripeErr = new StripeError()
     const ensured = errors.ensure(stripeErr)
 
-    expect(ensured).toBeInstanceOf(AppError)
+    expect(ensured).toBeInstanceOf(ErrataError)
     expect(ensured.code).toBe('billing.declined')
     expect(ensured.details).toEqual({
       reason: 'insufficient_funds',
@@ -186,7 +186,7 @@ describe('plugin onEnsure mapping', () => {
     })
   })
 
-  it('can return AppError directly from onEnsure', () => {
+  it('can return ErrataError directly from onEnsure', () => {
     const directPlugin: ErrataPlugin = {
       name: 'direct',
       onEnsure: (error, ctx) => {
@@ -362,7 +362,7 @@ describe('plugin onCreate side effects', () => {
       plugins: [loggingPlugin] as const,
     })
 
-    expect(() => errors.throw('billing.declined', { reason: 'test' })).toThrow(AppError)
+    expect(() => errors.throw('billing.declined', { reason: 'test' })).toThrow(ErrataError)
     expect(logSpy).toHaveBeenCalledWith('billing.declined')
   })
 
@@ -451,7 +451,7 @@ describe('plugin onCreate side effects', () => {
   })
 
   it('provides ctx.ensure in plugin hooks', () => {
-    let ensuredFromPlugin: AppError | null = null
+    let ensuredFromPlugin: ErrataError | null = null
 
     const wrapperPlugin: ErrataPlugin = {
       name: 'wrapper',

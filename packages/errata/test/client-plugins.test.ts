@@ -3,7 +3,7 @@ import type { ErrataClientPlugin } from '../src'
 import type { errors } from './fixtures'
 
 import { describe, expect, it, vi } from 'vitest'
-import { ClientAppError, createErrorClient, defineClientPlugin } from '../src'
+import { createErrorClient, defineClientPlugin, ErrataClientError } from '../src'
 
 // ─── 5. onDeserialize Adaptation (The "RFC 7807" Case) ────────────────────────
 
@@ -27,8 +27,8 @@ describe('client plugin onDeserialize adaptation', () => {
           && 'title' in payload
         ) {
           const p = payload as { type: string, title: string, status?: number, detail?: string }
-          // Map RFC 7807 to ClientAppError
-          return new ClientAppError({
+          // Map RFC 7807 to ErrataClientError
+          return new ErrataClientError({
             __brand: 'errata',
             code: 'billing.payment_failed', // Map type to code
             message: p.detail ?? p.title,
@@ -47,7 +47,7 @@ describe('client plugin onDeserialize adaptation', () => {
 
     const err = client.deserialize(rfc7807Payload)
 
-    expect(err).toBeInstanceOf(ClientAppError)
+    expect(err).toBeInstanceOf(ErrataClientError)
     expect(err.code).toBe('billing.payment_failed')
     expect(err.message).toBe('Your card was declined due to insufficient funds.')
     expect(err.status).toBe(402)
@@ -93,7 +93,7 @@ describe('client plugin onDeserialize adaptation', () => {
       name: 'plugin-a',
       onDeserialize: (payload) => {
         if (payload && typeof payload === 'object' && 'custom' in payload) {
-          return new ClientAppError({
+          return new ErrataClientError({
             __brand: 'errata',
             code: 'core.internal_error',
             message: 'Handled by A',
@@ -182,7 +182,7 @@ describe('client plugin onCreate', () => {
       name: 'adapter',
       onDeserialize: (payload) => {
         if (payload && typeof payload === 'object' && 'custom' in payload) {
-          return new ClientAppError({
+          return new ErrataClientError({
             __brand: 'errata',
             code: 'core.internal_error',
             message: 'Custom adapted',

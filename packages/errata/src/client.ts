@@ -7,7 +7,7 @@ import type {
   CodesForTag,
   CodesRecord,
   ErrataClientPlugin,
-  MatchingClientAppError,
+  MatchingErrataClientError,
   Pattern,
   PatternInput,
 } from './types'
@@ -20,8 +20,8 @@ import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matchin
 type InternalClientCode = 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
 type ClientCode<TCodes extends CodesRecord> = CodeOf<TCodes> | InternalClientCode
 
-export class ClientAppError<C extends string = string, D = unknown> extends Error {
-  override readonly name = 'ErrataError'
+export class ErrataClientError<C extends string = string, D = unknown> extends Error {
+  override readonly name = 'ErrataClientError'
   readonly code: C
   readonly status?: number
   readonly retryable?: boolean
@@ -48,23 +48,23 @@ export class ClientAppError<C extends string = string, D = unknown> extends Erro
  * Client match handlers object type.
  */
 export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
-  [K in Pattern<TCodes>]?: (e: MatchingClientAppError<TCodes, K>) => R
+  [K in Pattern<TCodes>]?: (e: MatchingErrataClientError<TCodes, K>) => R
 } & {
-  default?: (e: ClientAppError<ClientCode<TCodes>>) => R
+  default?: (e: ErrataClientError<ClientCode<TCodes>>) => R
 }
 
 /**
  * Client-side surface derived from a server `errors` type.
  */
 export interface ErrorClient<TCodes extends CodesRecord> {
-  /** Client-side AppError constructor for instanceof checks. */
-  AppError: new (
+  /** Client-side ErrataError constructor for instanceof checks. */
+  ErrataError: new (
     payload: SerializedError<ClientCode<TCodes>, any>
-  ) => ClientAppError<ClientCode<TCodes>, any>
+  ) => ErrataClientError<ClientCode<TCodes>, any>
   /** Turn a serialized payload into a client error instance. */
   deserialize: (
     payload: unknown,
-  ) => ClientAppError<ClientCode<TCodes>, any>
+  ) => ErrataClientError<ClientCode<TCodes>, any>
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
@@ -72,7 +72,7 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   is: <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
     err: unknown,
     pattern: P,
-  ) => err is MatchingClientAppError<TCodes, P>
+  ) => err is MatchingErrataClientError<TCodes, P>
   /**
    * Pattern matcher over codes with priority: exact match > longest wildcard > default.
    * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
@@ -85,7 +85,7 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   hasTag: <TTag extends string>(
     err: unknown,
     tag: TTag,
-  ) => err is MatchingClientAppError<
+  ) => err is MatchingErrataClientError<
     TCodes,
     Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>
   >
@@ -93,7 +93,7 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   safe: <T>(
     promise: Promise<T>,
   ) => Promise<
-    [data: T, error: null] | [data: null, error: ClientAppError<ClientCode<TCodes>, any>]
+    [data: T, error: null] | [data: null, error: ErrataClientError<ClientCode<TCodes>, any>]
   >
 }
 
@@ -120,7 +120,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
   type ClientCode = Code | 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
-  type TaggedClientAppError<TTag extends string> = MatchingClientAppError<
+  type TaggedErrataClientError<TTag extends string> = MatchingErrataClientError<
     TCodes,
     Extract<CodesForTag<TCodes, TTag>, Code>
   >
@@ -143,8 +143,8 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const internal = (
     code: Extract<ClientCode, `be.${string}`>,
     raw: unknown,
-  ): ClientAppError<ClientCode, { raw: unknown }> => {
-    return new ClientAppError<ClientCode, { raw: unknown }>({
+  ): ErrataClientError<ClientCode, { raw: unknown }> => {
+    return new ErrataClientError<ClientCode, { raw: unknown }>({
       __brand: LIB_NAME,
       code,
       message: code,
@@ -154,7 +154,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   }
 
   /** Run onCreate hooks for all plugins (side effects are independent). */
-  const runOnCreateHooks = (error: ClientAppError<any, any>): void => {
+  const runOnCreateHooks = (error: ErrataClientError<any, any>): void => {
     const ctx = getContext()
     for (const plugin of plugins) {
       if (plugin.onCreate) {
@@ -171,7 +171,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   /** Turn an unknown payload into a client error instance with defensive checks. */
   const deserialize = (
     payload: unknown,
-  ): ClientAppError<ClientCode, any> => {
+  ): ErrataClientError<ClientCode, any> => {
     // Try plugin onDeserialize hooks (first non-null wins)
     const ctx = getContext()
     for (const plugin of plugins) {
@@ -190,11 +190,11 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     }
 
     // Standard deserialization logic
-    let error: ClientAppError<ClientCode, any>
+    let error: ErrataClientError<ClientCode, any>
     if (payload && typeof payload === 'object') {
       const withCode = payload as { code?: unknown }
       if (typeof withCode.code === 'string') {
-        error = new ClientAppError(withCode as SerializedError<ClientCode, any>)
+        error = new ErrataClientError(withCode as SerializedError<ClientCode, any>)
       }
       else {
         error = internal('be.deserialization_failed', payload)
@@ -212,8 +212,8 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const is = <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
     err: unknown,
     pattern: P,
-  ): err is MatchingClientAppError<TCodes, P> => {
-    if (!(err instanceof ClientAppError))
+  ): err is MatchingErrataClientError<TCodes, P> => {
+    if (!(err instanceof ErrataClientError))
       return false
 
     const patterns = Array.isArray(pattern) ? pattern : [pattern]
@@ -225,7 +225,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     err: unknown,
     handlers: ClientMatchHandlers<TCodes, R>,
   ): R | undefined => {
-    if (!(err instanceof ClientAppError)) {
+    if (!(err instanceof ErrataClientError)) {
       return (handlers as any).default?.(err)
     }
 
@@ -242,8 +242,8 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const hasTag = <TTag extends string>(
     err: unknown,
     tag: TTag,
-  ): err is TaggedClientAppError<TTag> => {
-    if (!(err instanceof ClientAppError))
+  ): err is TaggedErrataClientError<TTag> => {
+    if (!(err instanceof ErrataClientError))
       return false
     return (err.tags ?? []).includes(tag)
   }
@@ -252,14 +252,14 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const safe = async <T>(
     promise: Promise<T>,
   ): Promise<
-    [data: T, error: null] | [data: null, error: ClientAppError<ClientCode, any>]
+    [data: T, error: null] | [data: null, error: ErrataClientError<ClientCode, any>]
   > => {
     try {
       const data = await promise
       return [data, null]
     }
     catch (err) {
-      if (err instanceof ClientAppError) {
+      if (err instanceof ErrataClientError) {
         return [null, err]
       }
 
@@ -276,7 +276,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   }
 
   return {
-    AppError: ClientAppError,
+    ErrataError: ErrataClientError,
     deserialize,
     is,
     match,

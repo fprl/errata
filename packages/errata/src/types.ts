@@ -152,39 +152,39 @@ export type ResolveMatchingCodes<
 
 /**
  * Helper type that distributes over a code union.
- * For each code C in the union, creates an AppError with that specific code and its details.
+ * For each code C in the union, creates an ErrataError with that specific code and its details.
  */
-type DistributeAppError<
+type DistributeErrataError<
   TCodes extends CodesRecord,
   C extends CodeOf<TCodes>,
-> = C extends unknown ? import('./errata-error').AppError<C, DetailsOf<TCodes, C>> : never
+> = C extends unknown ? import('./errata-error').ErrataError<C, DetailsOf<TCodes, C>> : never
 
 /**
- * Creates a union of AppError types for each matching code.
+ * Creates a union of ErrataError types for each matching code.
  * Uses distributive conditional types to properly correlate code with its details.
  */
-export type MatchingAppError<
+export type MatchingErrataError<
   TCodes extends CodesRecord,
   P,
-> = DistributeAppError<TCodes, ResolveMatchingCodes<TCodes, P>>
+> = DistributeErrataError<TCodes, ResolveMatchingCodes<TCodes, P>>
 
 /**
- * Helper type that distributes over a code union for ClientAppError.
- * For each code C in the union, creates a ClientAppError with that specific code and its details.
+ * Helper type that distributes over a code union for ErrataClientError.
+ * For each code C in the union, creates a ErrataClientError with that specific code and its details.
  */
-type DistributeClientAppError<
+type DistributeErrataClientError<
   TCodes extends CodesRecord,
   C extends CodeOf<TCodes>,
-> = C extends unknown ? import('./client').ClientAppError<C, DetailsOf<TCodes, C>> : never
+> = C extends unknown ? import('./client').ErrataClientError<C, DetailsOf<TCodes, C>> : never
 
 /**
- * Creates a union of ClientAppError types for each matching code.
+ * Creates a union of ErrataClientError types for each matching code.
  * Uses distributive conditional types to properly correlate code with its details.
  */
-export type MatchingClientAppError<
+export type MatchingErrataClientError<
   TCodes extends CodesRecord,
   P,
-> = DistributeClientAppError<TCodes, ResolveMatchingCodes<TCodes, P>>
+> = DistributeErrataClientError<TCodes, ResolveMatchingCodes<TCodes, P>>
 
 /**
  * Extracts the prefix from a wildcard pattern (e.g., 'auth.*' -> 'auth').
@@ -234,10 +234,10 @@ export interface ErrataConfig {
  * Provides restricted access to the errata instance.
  */
 export interface ErrataContext<TCodes extends CodesRecord = CodesRecord> {
-  /** Create an AppError for a known code. */
-  create: (code: CodeOf<TCodes>, details?: any) => import('./errata-error').AppError<CodeOf<TCodes>, any>
-  /** Normalize unknown errors into AppError. */
-  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./errata-error').AppError<CodeOf<TCodes>, any>
+  /** Create an ErrataError for a known code. */
+  create: (code: CodeOf<TCodes>, details?: any) => import('./errata-error').ErrataError<CodeOf<TCodes>, any>
+  /** Normalize unknown errors into ErrataError. */
+  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./errata-error').ErrataError<CodeOf<TCodes>, any>
   /** Access to instance configuration. */
   config: ErrataConfig
 }
@@ -261,22 +261,22 @@ export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfig
    * Runs inside `errors.ensure(err)`.
    * @param error - The raw unknown error being ensured.
    * @param ctx - The errata instance (restricted context).
-   * @returns AppError instance OR { code, details } OR null (to pass).
+   * @returns ErrataError instance OR { code, details } OR null (to pass).
    */
   onEnsure?: (
     error: unknown,
     ctx: ErrataContext<TPluginCodes>,
-  ) => import('./errata-error').AppError<any, any> | { code: string, details?: any } | null
+  ) => import('./errata-error').ErrataError<any, any> | { code: string, details?: any } | null
 
   /**
    * Hook: Side Effects
    * Runs synchronously inside `errors.create()` (and by extension `throw`).
    * All plugins receive this callback (side effects are independent).
-   * @param error - The fully formed AppError instance.
+   * @param error - The fully formed ErrataError instance.
    * @param ctx - The errata instance.
    */
   onCreate?: (
-    error: import('./errata-error').AppError<any, any>,
+    error: import('./errata-error').ErrataError<any, any>,
     ctx: ErrataContext<TPluginCodes>,
   ) => void
 }
@@ -312,22 +312,22 @@ export interface ErrataClientPlugin {
    * Runs inside `client.deserialize(payload)`.
    * @param payload - The raw input (usually JSON).
    * @param ctx - Client context.
-   * @returns ClientAppError instance OR null (to pass to next plugin).
+   * @returns ErrataClientError instance OR null (to pass to next plugin).
    */
   onDeserialize?: (
     payload: unknown,
     ctx: ClientContext,
-  ) => import('./client').ClientAppError<any, any> | null
+  ) => import('./client').ErrataClientError<any, any> | null
 
   /**
    * Hook: Side Effects
    * Runs when `deserialize` succeeds.
    * All plugins receive this callback (side effects are independent).
-   * @param error - The ClientAppError instance.
+   * @param error - The ErrataClientError instance.
    * @param ctx - Client context.
    */
   onCreate?: (
-    error: import('./client').ClientAppError<any, any>,
+    error: import('./client').ErrataClientError<any, any>,
     ctx: ClientContext,
   ) => void
 }

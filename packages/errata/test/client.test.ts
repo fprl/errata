@@ -14,7 +14,7 @@ describe('client error client', () => {
     const payload = errors.serialize(serverErr)
     const err = client.deserialize(payload)
 
-    expect(err).toBeInstanceOf(client.AppError)
+    expect(err).toBeInstanceOf(client.ErrataError)
     expect(client.is(err, 'auth.invalid_token')).toBe(true)
     expect(
       client.match(err, {
@@ -106,7 +106,7 @@ describe('client pattern matching: is()', () => {
   })
 
   describe('edge cases', () => {
-    it('returns false for non-ClientAppError values', () => {
+    it('returns false for non-ErrataClientError values', () => {
       expect(client.is(new Error('boom'), 'auth.*')).toBe(false)
       expect(client.is(null, 'auth.*')).toBe(false)
       expect(client.is(undefined, 'auth.*')).toBe(false)
@@ -191,8 +191,8 @@ describe('client pattern matching: match()', () => {
     })
   })
 
-  describe('non-ClientAppError handling', () => {
-    it('calls default handler for non-ClientAppError', () => {
+  describe('non-ErrataClientError handling', () => {
+    it('calls default handler for non-ErrataClientError', () => {
       const result = client.match(new Error('boom'), {
         'auth.*': () => 'auth',
         'default': () => 'not-client-error',
@@ -201,7 +201,7 @@ describe('client pattern matching: match()', () => {
       expect(result).toBe('not-client-error')
     })
 
-    it('returns undefined for non-ClientAppError without default', () => {
+    it('returns undefined for non-ErrataClientError without default', () => {
       const result = client.match(new Error('boom'), {
         'auth.*': () => 'auth',
       })
@@ -230,7 +230,7 @@ describe('client hasTag()', () => {
     expect(client.hasTag(err, 'billing')).toBe(false)
   })
 
-  it('returns false for non-ClientAppError', () => {
+  it('returns false for non-ErrataClientError', () => {
     expect(client.hasTag(new Error('boom'), 'auth')).toBe(false)
     expect(client.hasTag(null, 'auth')).toBe(false)
   })
@@ -272,13 +272,13 @@ describe('client deserialize (robust)', () => {
     const payload = errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' }))
     const err = client.deserialize(payload)
 
-    expect(err).toBeInstanceOf(client.AppError)
+    expect(err).toBeInstanceOf(client.ErrataError)
     expect(err.code).toBe('auth.invalid_token')
   })
 
   it('allows extra fields on payload', () => {
     const err = client.deserialize({ code: 'foo', extra: 123, message: 'x' })
-    expect(err).toBeInstanceOf(client.AppError)
+    expect(err).toBeInstanceOf(client.ErrataError)
     expect(err.code).toBe('foo')
   })
 

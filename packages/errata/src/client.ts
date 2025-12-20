@@ -1,5 +1,5 @@
-import type { SerializedError } from './app-error'
 import type { ErrataInstance } from './errata'
+import type { SerializedError } from './errata-error'
 import type {
   ClientConfig,
   ClientContext,

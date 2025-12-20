@@ -1,4 +1,3 @@
-export { AppError, type SerializedError } from './app-error'
 export {
   ClientAppError,
   createErrorClient,
@@ -12,6 +11,7 @@ export {
   type ErrataOptions,
   type MatchHandlers,
 } from './errata'
+export { AppError, type SerializedError } from './errata-error'
 export type {
   ClientConfig,
   ClientContext,

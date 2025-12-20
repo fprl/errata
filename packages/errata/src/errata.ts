@@ -1,4 +1,4 @@
-import type { SerializedError } from './app-error'
+import type { SerializedError } from './errata-error'
 import type {
   CodeOf,
   CodesForTag,
@@ -15,7 +15,7 @@ import type {
   PatternInput,
 } from './types'
 
-import { AppError, isSerializedError, resolveMessage } from './app-error'
+import { AppError, isSerializedError, resolveMessage } from './errata-error'
 import { LIB_NAME } from './types'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 

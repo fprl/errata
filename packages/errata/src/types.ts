@@ -157,7 +157,7 @@ export type ResolveMatchingCodes<
 type DistributeAppError<
   TCodes extends CodesRecord,
   C extends CodeOf<TCodes>,
-> = C extends unknown ? import('./app-error').AppError<C, DetailsOf<TCodes, C>> : never
+> = C extends unknown ? import('./errata-error').AppError<C, DetailsOf<TCodes, C>> : never
 
 /**
  * Creates a union of AppError types for each matching code.
@@ -235,9 +235,9 @@ export interface ErrataConfig {
  */
 export interface ErrataContext<TCodes extends CodesRecord = CodesRecord> {
   /** Create an AppError for a known code. */
-  create: (code: CodeOf<TCodes>, details?: any) => import('./app-error').AppError<CodeOf<TCodes>, any>
+  create: (code: CodeOf<TCodes>, details?: any) => import('./errata-error').AppError<CodeOf<TCodes>, any>
   /** Normalize unknown errors into AppError. */
-  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./app-error').AppError<CodeOf<TCodes>, any>
+  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./errata-error').AppError<CodeOf<TCodes>, any>
   /** Access to instance configuration. */
   config: ErrataConfig
 }
@@ -266,7 +266,7 @@ export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfig
   onEnsure?: (
     error: unknown,
     ctx: ErrataContext<TPluginCodes>,
-  ) => import('./app-error').AppError<any, any> | { code: string, details?: any } | null
+  ) => import('./errata-error').AppError<any, any> | { code: string, details?: any } | null
 
   /**
    * Hook: Side Effects
@@ -276,7 +276,7 @@ export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfig
    * @param ctx - The errata instance.
    */
   onCreate?: (
-    error: import('./app-error').AppError<any, any>,
+    error: import('./errata-error').AppError<any, any>,
     ctx: ErrataContext<TPluginCodes>,
   ) => void
 }

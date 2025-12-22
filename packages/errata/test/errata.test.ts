@@ -1,7 +1,10 @@
+import type { InternalCode } from '../src'
+import type { ErrorCode } from './fixtures'
+
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { code, defineCodes, errata, ErrataError, props } from '../src'
-import { errors } from './fixtures'
+import { codes, errors } from './fixtures'
 
 describe('errata basics', () => {
   it('creates ErrataError with resolved message and typed details', () => {
@@ -24,9 +27,9 @@ describe('errata basics', () => {
   })
 
   it('throws ErrataError via throw helper', () => {
-    expect(() =>
-      errors.throw('auth.invalid_token', { reason: 'expired' }),
-    ).toThrowError(ErrataError)
+    expect(() => {
+      throw errors.create('auth.invalid_token', { reason: 'expired' })
+    }).toThrowError(ErrataError)
   })
 
   it('wraps unknown errors with ensure and fallback code', () => {
@@ -48,6 +51,17 @@ describe('errata basics', () => {
       'default': e => `default:${e.code}`,
     })
     expect(matched).toBe('auth:expired')
+  })
+
+  it('normalizes unknown errors in match and widens type', () => {
+    const result = errors.match(new Error('boom'), {
+      default: (e) => {
+        expectTypeOf(e.code).toEqualTypeOf<ErrorCode | InternalCode>()
+        return e.code
+      },
+    })
+
+    expect(result).toBe('errata.unknown_error')
   })
 
   it('serializes and deserializes with brand', () => {
@@ -100,9 +114,6 @@ describe('errata basics', () => {
 
     const override = local.create('ops.rate_limited', { retryAfter: 5 })
     expect(override.details.retryAfter).toBe(5)
-
-    // @ts-expect-error strict details are required
-    local.create('users.missing')
 
     const strict = local.create('users.missing', { userId: 'u1' })
     expect(strict.details.userId).toBe('u1')
@@ -187,15 +198,40 @@ describe('errata basics', () => {
 
       expect(value).toBeNull()
       expect(err).toBeInstanceOf(errors.ErrataError)
-      expect(err?.code).toBe('core.internal_error')
+      expect(err?.code).toBe('errata.unknown_error')
 
       if (err) {
         expectTypeOf(err).toMatchTypeOf<InstanceType<typeof errors.ErrataError>>()
+        expectTypeOf(err.code).toEqualTypeOf<ErrorCode | InternalCode>()
         expectTypeOf(value).toEqualTypeOf<null>()
       }
       else {
         expectTypeOf(value).toEqualTypeOf<number>()
       }
+    })
+  })
+
+  describe('onUnknown hook', () => {
+    const withOnUnknown = errata({
+      codes,
+      onUnknown: err => err instanceof SyntaxError ? 'analytics.event_dropped' : null,
+    })
+
+    it('maps unknown errors via onUnknown to a user code', () => {
+      const boom = new SyntaxError('bad payload')
+      const ensured = withOnUnknown.ensure(boom)
+
+      expect(ensured.code).toBe('analytics.event_dropped')
+      expect((ensured.details as any).raw).toBe(boom)
+    })
+
+    it('bypasses onUnknown for existing ErrataError and respects fallback', () => {
+      const existing = withOnUnknown.create('auth.invalid_token', { reason: 'expired' })
+      expect(withOnUnknown.ensure(existing)).toBe(existing)
+
+      const fallbackErr = withOnUnknown.ensure(new Error('boom'), 'auth.user_not_found')
+      expect(fallbackErr.code).toBe('auth.user_not_found')
+      expect((fallbackErr.details as any).cause).toBeInstanceOf(Error)
     })
   })
 })

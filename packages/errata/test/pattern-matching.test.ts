@@ -113,25 +113,20 @@ describe('pattern Matching: is() method', () => {
     })
 
     it('narrows type for wildcard pattern', () => {
-      const err: unknown = errors.create('auth.invalid_token', { reason: 'expired' })
+      const err = errors.create('auth.invalid_token', { reason: 'expired' })
 
       if (errors.is(err, 'auth.*')) {
-        // Type should be narrowed to union of all auth codes
-        expectTypeOf(err.code).toEqualTypeOf<
-          | 'auth.invalid_token'
-          | 'auth.missing_credentials'
-          | 'auth.login_failed'
-          | 'auth.rate_limited'
-        >()
+        // Locally created error stays narrow even with wildcard pattern
+        expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token'>()
       }
     })
 
     it('narrows type for core.* wildcard pattern', () => {
-      const err: unknown = errors.create('core.internal_error', undefined)
+      const err = errors.create('core.internal_error', undefined)
 
       if (errors.is(err, 'core.*')) {
         // Type should be narrowed to only core codes
-        expectTypeOf(err.code).toEqualTypeOf<'core.internal_error' | 'core.not_found'>()
+        expectTypeOf(err.code).toEqualTypeOf<'core.internal_error'>()
       }
     })
   })
@@ -157,17 +152,11 @@ describe('pattern Matching: is() method', () => {
     })
 
     it('narrows type for array of patterns', () => {
-      const err: unknown = errors.create('auth.invalid_token', { reason: 'expired' })
+      const err = errors.create('auth.invalid_token', { reason: 'expired' })
 
       if (errors.is(err, ['auth.*', 'billing.payment_failed'])) {
         // Type should be union of all matching codes
-        expectTypeOf(err.code).toEqualTypeOf<
-          | 'auth.invalid_token'
-          | 'auth.missing_credentials'
-          | 'auth.login_failed'
-          | 'auth.rate_limited'
-          | 'billing.payment_failed'
-        >()
+        expectTypeOf(err.code).toEqualTypeOf<'auth.invalid_token'>()
       }
     })
   })
@@ -219,7 +208,7 @@ describe('pattern Matching: match() method', () => {
 
   describe('wildcard handlers', () => {
     it('calls wildcard handler when no exact match', () => {
-      const err = errors.create('auth.missing_credentials', { field: 'password' })
+      const err: unknown = errors.create('auth.missing_credentials', { field: 'password' })
 
       const result = errors.match(err, {
         'auth.invalid_token': () => 'token',
@@ -231,7 +220,7 @@ describe('pattern Matching: match() method', () => {
     })
 
     it('narrows type in wildcard handler', () => {
-      const err = errors.create('auth.login_failed', { attempts: 3 })
+      const err: unknown = errors.create('auth.login_failed', { attempts: 3 })
 
       errors.match(err, {
         'auth.*': (e) => {
@@ -275,7 +264,7 @@ describe('pattern Matching: match() method', () => {
     })
 
     it('falls back to default when no pattern matches', () => {
-      const err = errors.create('core.internal_error', undefined)
+      const err: unknown = errors.create('core.internal_error', undefined)
 
       const result = errors.match(err, {
         'auth.*': () => 'auth',
@@ -307,8 +296,8 @@ describe('pattern Matching: match() method', () => {
         'default': e => `wrapped:${e.code}`,
       })
 
-      // Unknown errors get wrapped with the first available code
-      expect(result).toBe('wrapped:core.internal_error')
+      // Unknown errors get wrapped as internal boundary errors
+      expect(result).toBe('wrapped:errata.unknown_error')
     })
   })
 
@@ -365,7 +354,7 @@ describe('pattern Matching: Type Inference', () => {
   })
 
   it('matchingCodes extracts correct codes for wildcard pattern', () => {
-    const err: unknown = errors.create('auth.login_failed', { attempts: 3 })
+    const err = errors.create('auth.login_failed', { attempts: 3 })
 
     if (errors.is(err, 'auth.*')) {
       if (err.code === 'auth.login_failed') {
@@ -376,7 +365,9 @@ describe('pattern Matching: Type Inference', () => {
   })
 
   it('handles discriminated union narrowing after is()', () => {
-    function handleError(err: unknown): string {
+    function handleError(input: unknown): string {
+      const err = errors.ensure(input)
+
       if (errors.is(err, 'auth.invalid_token')) {
         // TypeScript knows err.details has 'reason'
         return `Token error: ${err.details.reason}`

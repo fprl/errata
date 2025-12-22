@@ -77,13 +77,13 @@ describe('client plugin onDeserialize adaptation', () => {
     expect(err.code).toBe('auth.invalid_token')
   })
 
-  it('returns errata.deserialization_failed for invalid payloads without plugins', () => {
+  it('returns errata.unknown_error for invalid payloads without plugins', () => {
     const client = createErrorClient<typeof errors>()
 
     const invalidPayload = { no_code_here: true }
     const err = client.deserialize(invalidPayload)
 
-    expect(err.code).toBe('errata.deserialization_failed')
+    expect(err.code).toBe('errata.unknown_error')
   })
 
   it('stops at first plugin that returns non-null', () => {

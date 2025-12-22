@@ -4,7 +4,7 @@ import type { ErrorCode } from './fixtures'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { code, defineCodes, errata, ErrataError, props } from '../src'
-import { errors } from './fixtures'
+import { codes, errors } from './fixtures'
 
 describe('errata basics', () => {
   it('creates ErrataError with resolved message and typed details', () => {
@@ -211,6 +211,30 @@ describe('errata basics', () => {
       else {
         expectTypeOf(value).toEqualTypeOf<number>()
       }
+    })
+  })
+
+  describe('onUnknown hook', () => {
+    const withOnUnknown = errata({
+      codes,
+      onUnknown: err => err instanceof SyntaxError ? 'analytics.event_dropped' : null,
+    })
+
+    it('maps unknown errors via onUnknown to a user code', () => {
+      const boom = new SyntaxError('bad payload')
+      const ensured = withOnUnknown.ensure(boom)
+
+      expect(ensured.code).toBe('analytics.event_dropped')
+      expect((ensured.details as any).raw).toBe(boom)
+    })
+
+    it('bypasses onUnknown for existing ErrataError and respects fallback', () => {
+      const existing = withOnUnknown.create('auth.invalid_token', { reason: 'expired' })
+      expect(withOnUnknown.ensure(existing)).toBe(existing)
+
+      const fallbackErr = withOnUnknown.ensure(new Error('boom'), 'auth.user_not_found')
+      expect(fallbackErr.code).toBe('auth.user_not_found')
+      expect((fallbackErr.details as any).cause).toBeInstanceOf(Error)
     })
   })
 })

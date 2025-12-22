@@ -6,10 +6,7 @@ export const PROPS_DEFAULT = Symbol(`${LIB_NAME}:props-default`)
 
 interface PropsMarker { [PROPS_DEFAULT]?: 'default' | 'strict' }
 
-export type InternalCode
-  = | 'errata.unknown_error'
-    | 'errata.deserialization_failed'
-    | 'errata.network_error'
+export type InternalCode = 'errata.unknown_error'
 
 export interface InternalDetails {
   raw: unknown

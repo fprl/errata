@@ -89,6 +89,14 @@ export interface ErrataOptions<
   codes: TCodes
   /** Optional lifecycle plugins (logging, error mapping, monitoring). */
   plugins?: TPlugins
+  /**
+   * Called when normalizing an unknown value.
+   * Return a known code to map it, or null/undefined to fallback to errata.unknown_error.
+   */
+  onUnknown?: (
+    error: unknown,
+    ctx: ErrataContext<MergedCodes<TCodes, TPlugins>>,
+  ) => CodeOf<TCodes> | null | undefined
   /** Control stack capture; defaults on except production if you pass env. */
   captureStack?: boolean
 }
@@ -193,6 +201,7 @@ export function errata<
   defaultExpose = false,
   defaultRetryable = false,
   plugins = [] as unknown as TPlugins,
+  onUnknown,
   captureStack = true,
 }: ErrataOptions<TCodes, TPlugins>): ErrataInstance<MergedCodes<TCodes, TPlugins>> {
   type AllCodes = MergedCodes<TCodes, TPlugins>
@@ -202,8 +211,6 @@ export function errata<
   const defaultLogLevel: LogLevel = 'error'
   const internalCodeSet: Record<InternalCode, true> = {
     'errata.unknown_error': true,
-    'errata.deserialization_failed': true,
-    'errata.network_error': true,
   }
 
   // Merge user codes with plugin codes
@@ -389,6 +396,19 @@ export function errata<
     // If already an ErrataError, return as-is
     if (err instanceof ErrataError) {
       return err as BoundaryErrataError<AllCodes, BoundaryCode>
+    }
+
+    // User onUnknown hook (takes precedence)
+    if (onUnknown) {
+      try {
+        const mapped = onUnknown(err, getContext())
+        if (mapped) {
+          return createFn(mapped, { raw: err } as any) as BoundaryErrataError<AllCodes, BoundaryCode>
+        }
+      }
+      catch (hookError) {
+        console.error(`${LIB_NAME}: onUnknown crashed`, hookError)
+      }
     }
 
     // Try plugin onEnsure hooks (first non-null wins)

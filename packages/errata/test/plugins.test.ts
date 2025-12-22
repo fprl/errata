@@ -68,7 +68,7 @@ describe('plugin code injection', () => {
   })
 
   it('warns on duplicate plugin names', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     errata({
       codes: baseCodes,
@@ -85,7 +85,7 @@ describe('plugin code injection', () => {
   })
 
   it('warns on code collision between plugins and base codes', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     const conflictingPlugin: ErrataPlugin<typeof baseCodes> = {
       name: 'conflicting',
@@ -290,7 +290,7 @@ describe('plugin onEnsure priority chain', () => {
   })
 
   it('handles errors thrown in onEnsure gracefully', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
 
     const crashingPlugin: ErrataPlugin = {
       name: 'crashing',
@@ -392,7 +392,7 @@ describe('plugin onCreate side effects', () => {
   })
 
   it('swallows errors thrown in onCreate without crashing', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
     const safeSpy = vi.fn()
 
     const crashingPlugin: ErrataPlugin = {

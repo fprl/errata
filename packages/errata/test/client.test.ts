@@ -293,10 +293,10 @@ describe('client deserialize (robust)', () => {
     expect(err.code).toBe('foo')
   })
 
-  it('returns deserialization_failed when code is missing', () => {
+  it('returns unknown_error when code is missing', () => {
     const err = client.deserialize({ message: 'oops' })
-    expect(err.code).toBe('errata.deserialization_failed')
-    if (err.code === 'errata.deserialization_failed') {
+    expect(err.code).toBe('errata.unknown_error')
+    if (err.code === 'errata.unknown_error') {
       const details = err.details as { raw?: unknown } | undefined
       expect(details?.raw).toEqual({ message: 'oops' })
     }
@@ -318,14 +318,42 @@ describe('client deserialize (robust)', () => {
 describe('client safe()', () => {
   const client = createErrorClient<typeof errors>()
 
-  it('wraps network TypeError as network_error', async () => {
+  it('normalizes network TypeError via ensure (no magic mapping)', async () => {
     const [data, err] = await client.safe(Promise.reject(new TypeError('dns')))
 
     expect(data).toBeNull()
-    expect(err?.code).toBe('errata.network_error')
+    expect(err?.code).toBe('errata.unknown_error')
 
     if (err) {
       expectTypeOf(err.code).toEqualTypeOf<ErrorCode | InternalCode>()
     }
+  })
+})
+
+describe('client onUnknown hook', () => {
+  const client = createErrorClient<typeof errors>({
+    onUnknown: err => err instanceof TypeError ? 'analytics.event_dropped' : null,
+  })
+
+  it('maps unknowns to provided code when onUnknown returns a value', async () => {
+    const boom = new TypeError('network down')
+    const [data, err] = await client.safe(Promise.reject(boom))
+
+    expect(data).toBeNull()
+    expect(err?.code).toBe('analytics.event_dropped')
+    expect(err?.details).toBe(boom)
+  })
+
+  it('falls back to unknown_error when onUnknown returns null', () => {
+    const payload = { no_code_here: true }
+    const err = client.deserialize(payload)
+
+    expect(err.code).toBe('errata.unknown_error')
+    expect((err.details as any).raw).toEqual(payload)
+  })
+
+  it('returns existing ErrataClientError unchanged', () => {
+    const existing = client.deserialize(errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' })))
+    expect(client.ensure(existing)).toBe(existing)
   })
 })

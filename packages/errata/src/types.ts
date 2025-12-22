@@ -337,7 +337,7 @@ export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfig
 
   /**
    * Hook: Side Effects
-   * Runs synchronously inside `errors.create()` (and by extension `throw`).
+   * Runs synchronously inside `errors.create()`.
    * All plugins receive this callback (side effects are independent).
    * @param error - The fully formed ErrataError instance.
    * @param ctx - The errata instance.

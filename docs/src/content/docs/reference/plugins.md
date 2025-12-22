@@ -179,7 +179,6 @@ Since you know the internal logic, here is the list of test cases required to va
       * Create a plugin that calls `logSpy` in `onCreate`.
       * Call `errors.create(...)`.
       * **Assert:** `logSpy` was called with the created error.
-      * **Assert:** `logSpy` was called (proving `throw` calls `create`).
 
 ### B. Client Plugin Tests
 

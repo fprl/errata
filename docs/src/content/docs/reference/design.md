@@ -6,7 +6,7 @@ Errata is a throw-first, typed error registry for TypeScript apps.
 
 - Central **codes registry** with `defineCodes` + `code` + `props`
 - Same types on **server and client**
-- Strong helpers: `create`/`throw`, `is`/`match`, `hasTag`, `serialize`/`deserialize`
+- Strong helpers: `create`, `is`/`match`, `hasTag`, `serialize`/`deserialize`
 - Status is intentionally typed as `number` for framework compatibility
 - Tags are metadata; they stay `string[]` at runtime, but `hasTag` narrows when tags are literal
 

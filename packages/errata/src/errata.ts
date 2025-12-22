@@ -349,11 +349,24 @@ export function errata<
     err: BoundaryErrataError<AllCodes, C>,
   ): SerializedError<C, BoundaryErrataError<AllCodes, C>['details']> => {
     const base = err.toJSON()
-    const json: SerializedError<C, BoundaryErrataError<AllCodes, C>['details']> = { ...base }
+    let json: SerializedError<C, BoundaryErrataError<AllCodes, C>['details']> = { ...base }
 
     // Omit details when the code isn't marked as exposable.
     if (!err.expose) {
       delete (json as any).details
+    }
+
+    // Allow plugins to adapt the serialized payload
+    const ctx = getContext()
+    for (const plugin of plugins) {
+      if (plugin.onSerialize) {
+        try {
+          json = plugin.onSerialize(json, err, ctx as any) as typeof json
+        }
+        catch (hookError) {
+          console.error(`${LIB_NAME}: plugin "${plugin.name}" crashed in onSerialize`, hookError)
+        }
+      }
     }
 
     return json
@@ -411,12 +424,12 @@ export function errata<
       }
     }
 
-    // Try plugin onEnsure hooks (first non-null wins)
+    // Try plugin onUnknown hooks (first non-null wins)
     const ctx = getContext()
     for (const plugin of plugins) {
-      if (plugin.onEnsure) {
+      if (plugin.onUnknown) {
         try {
-          const result = plugin.onEnsure(err, ctx as any)
+          const result = plugin.onUnknown(err, ctx as any)
           if (result !== null) {
             if (result instanceof ErrataError) {
               return result as BoundaryErrataError<AllCodes, BoundaryCode>
@@ -426,7 +439,7 @@ export function errata<
           }
         }
         catch (hookError) {
-          console.error(`${LIB_NAME}: plugin "${plugin.name}" crashed in onEnsure`, hookError)
+          console.error(`${LIB_NAME}: plugin "${plugin.name}" crashed in onUnknown`, hookError)
         }
       }
     }

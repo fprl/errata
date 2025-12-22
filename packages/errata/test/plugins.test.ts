@@ -117,7 +117,7 @@ describe('plugin code injection', () => {
     const myPlugin = definePlugin({
       name: 'my-plugin',
       codes: myPluginCodes,
-      onEnsure: (_error, ctx) => {
+      onUnknown: (_error, ctx) => {
         // ctx.create should be available with autocomplete
         if (_error instanceof Error && _error.message === 'trigger') {
           return ctx.create('myplugin.custom_error')
@@ -141,9 +141,9 @@ describe('plugin code injection', () => {
   })
 })
 
-// ─── 2. onEnsure Mapping (The "Stripe" Case) ──────────────────────────────────
+// ─── 2. onUnknown Mapping (The "Stripe" Case) ────────────────────────────────
 
-describe('plugin onEnsure mapping', () => {
+describe('plugin onUnknown mapping', () => {
   // Mock third-party error
   class StripeError extends Error {
     code = 'card_declined'
@@ -155,7 +155,7 @@ describe('plugin onEnsure mapping', () => {
 
   const stripePlugin: ErrataPlugin = {
     name: 'stripe',
-    onEnsure: (error, _ctx) => {
+    onUnknown: (error, _ctx) => {
       if (error instanceof StripeError) {
         return {
           code: 'billing.declined',
@@ -174,7 +174,7 @@ describe('plugin onEnsure mapping', () => {
     plugins: [stripePlugin] as const,
   })
 
-  it('maps third-party errors to ErrataError via onEnsure', () => {
+  it('maps third-party errors to ErrataError via onUnknown', () => {
     const stripeErr = new StripeError()
     const ensured = errors.ensure(stripeErr)
 
@@ -186,10 +186,10 @@ describe('plugin onEnsure mapping', () => {
     })
   })
 
-  it('can return ErrataError directly from onEnsure', () => {
+  it('can return ErrataError directly from onUnknown', () => {
     const directPlugin: ErrataPlugin = {
       name: 'direct',
-      onEnsure: (error, ctx) => {
+      onUnknown: (error, ctx) => {
         if (error instanceof StripeError) {
           return ctx.create('billing.declined', {
             reason: error.decline_code,
@@ -212,7 +212,7 @@ describe('plugin onEnsure mapping', () => {
   it('falls back to standard handling when plugins return null', () => {
     const noopPlugin: ErrataPlugin = {
       name: 'noop',
-      onEnsure: () => null,
+      onUnknown: () => null,
     }
 
     const errorsWithNoop = errata({
@@ -228,9 +228,9 @@ describe('plugin onEnsure mapping', () => {
   })
 })
 
-// ─── 3. onEnsure Priority/Chain ───────────────────────────────────────────────
+// ─── 3. onUnknown Priority/Chain ─────────────────────────────────────────────
 
-describe('plugin onEnsure priority chain', () => {
+describe('plugin onUnknown priority chain', () => {
   class CustomError extends Error {
     type = 'custom'
   }
@@ -238,12 +238,12 @@ describe('plugin onEnsure priority chain', () => {
   it('stops at first plugin that returns non-null', () => {
     const pluginA: ErrataPlugin = {
       name: 'plugin-a',
-      onEnsure: () => null, // Passes through
+      onUnknown: () => null, // Passes through
     }
 
     const pluginB: ErrataPlugin = {
       name: 'plugin-b',
-      onEnsure: (error, _ctx) => {
+      onUnknown: (error, _ctx) => {
         if (error instanceof CustomError) {
           return { code: 'core.internal_error', details: { source: 'plugin-b' } }
         }
@@ -261,11 +261,11 @@ describe('plugin onEnsure priority chain', () => {
   })
 
   it('short-circuits when first plugin handles error', () => {
-    const onEnsureB = vi.fn(() => null)
+    const onUnknownB = vi.fn(() => null)
 
     const pluginA: ErrataPlugin = {
       name: 'plugin-a',
-      onEnsure: (error) => {
+      onUnknown: (error) => {
         if (error instanceof CustomError) {
           return { code: 'core.internal_error', details: { source: 'plugin-a' } }
         }
@@ -275,7 +275,7 @@ describe('plugin onEnsure priority chain', () => {
 
     const pluginB: ErrataPlugin = {
       name: 'plugin-b',
-      onEnsure: onEnsureB,
+      onUnknown: onUnknownB,
     }
 
     const errors = errata({
@@ -286,22 +286,22 @@ describe('plugin onEnsure priority chain', () => {
     const ensured = errors.ensure(new CustomError())
 
     expect(ensured.details).toEqual({ source: 'plugin-a' })
-    expect(onEnsureB).not.toHaveBeenCalled()
+    expect(onUnknownB).not.toHaveBeenCalled()
   })
 
-  it('handles errors thrown in onEnsure gracefully', () => {
+  it('handles errors thrown in onUnknown gracefully', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
 
     const crashingPlugin: ErrataPlugin = {
       name: 'crashing',
-      onEnsure: () => {
+      onUnknown: () => {
         throw new Error('Plugin crashed!')
       },
     }
 
     const fallbackPlugin: ErrataPlugin = {
       name: 'fallback',
-      onEnsure: () => ({ code: 'core.internal_error', details: { fallback: true } }),
+      onUnknown: () => ({ code: 'core.internal_error', details: { fallback: true } }),
     }
 
     const errors = errata({
@@ -313,7 +313,7 @@ describe('plugin onEnsure priority chain', () => {
 
     // Should have logged the crash
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('plugin "crashing" crashed in onEnsure'),
+      expect.stringContaining('plugin "crashing" crashed in onUnknown'),
       expect.any(Error),
     )
 
@@ -455,7 +455,7 @@ describe('plugin onCreate side effects', () => {
 
     const wrapperPlugin: ErrataPlugin = {
       name: 'wrapper',
-      onEnsure: (error, ctx) => {
+      onUnknown: (error, ctx) => {
         // Use ctx.ensure to re-normalize (careful with infinite loops in real code!)
         if (error instanceof Error && error.message === 'wrap-me') {
           ensuredFromPlugin = ctx.create('core.internal_error', { wrapped: true } as any)
@@ -473,5 +473,27 @@ describe('plugin onCreate side effects', () => {
     const result = errors.ensure(new Error('wrap-me'))
     expect(result).toBe(ensuredFromPlugin)
     expect(result.details).toEqual({ wrapped: true })
+  })
+
+  it('onSerialize can modify payloads', () => {
+    const serializePlugin: ErrataPlugin = {
+      name: 'serialize-scrubber',
+      onSerialize: (payload, error, _ctx) => {
+        if (error.code === 'billing.declined') {
+          return { ...payload, details: { redacted: true } }
+        }
+        return payload
+      },
+    }
+
+    const errors = errata({
+      codes: baseCodes,
+      plugins: [serializePlugin] as const,
+    })
+
+    const err = errors.create('billing.declined', { reason: 'oops' })
+    const payload = errors.serialize(err)
+
+    expect(payload.details).toEqual({ redacted: true })
   })
 })

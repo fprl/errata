@@ -316,10 +316,24 @@ export interface ErrataPlugin<TPluginCodes extends CodeConfigRecord = CodeConfig
    * @param ctx - The errata instance (restricted context).
    * @returns ErrataError instance OR { code, details } OR null (to pass).
    */
-  onEnsure?: (
+  onUnknown?: (
     error: unknown,
     ctx: ErrataContext<TPluginCodes>,
   ) => import('./errata-error').ErrataError<any, any> | { code: string, details?: any } | null
+
+  /**
+   * Hook: Serialization Adaptation
+   * Runs inside `errors.serialize(err)` with the mutable payload.
+   * @param payload - The current serialized error payload.
+   * @param error - The original ErrataError instance.
+   * @param ctx - The errata instance (restricted context).
+   * @returns A SerializedError (can be the same object or a modified clone).
+   */
+  onSerialize?: (
+    payload: import('./errata-error').SerializedError<string, any>,
+    error: import('./errata-error').ErrataError<any, any>,
+    ctx: ErrataContext<TPluginCodes>,
+  ) => import('./errata-error').SerializedError<string, any>
 
   /**
    * Hook: Side Effects

@@ -1,4 +1,6 @@
-## Errata – Design & Usage
+---
+title: Design & Usage
+---
 
 Errata is a throw-first, typed error registry for TypeScript apps.
 

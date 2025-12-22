@@ -1,4 +1,6 @@
-# Errata: Plugin System Specification
+---
+title: Plugin system Specification
+---
 
 ## 1\. Architectural Overview
 
@@ -177,7 +179,6 @@ Since you know the internal logic, here is the list of test cases required to va
       * Create a plugin that calls `logSpy` in `onCreate`.
       * Call `errors.create(...)`.
       * **Assert:** `logSpy` was called with the created error.
-      * Call `errors.throw(...)` (inside a try/catch).
       * **Assert:** `logSpy` was called (proving `throw` calls `create`).
 
 ### B. Client Plugin Tests
@@ -201,4 +202,3 @@ Since you know the internal logic, here is the list of test cases required to va
 
   * **Recursion Safety:** Be careful that `ctx.create()` inside a plugin doesn't trigger an infinite loop of `onCreate` hooks if not handled carefully (though usually `onCreate` logic like logging doesn't call `create` again).
   * **Dependency Injection:** Ensure `ctx` passed to plugins is robust. It's often easiest to pass the fully constructed `errors` instance, but be aware of circular reference issues during initialization. A lazy getter or passing a restricted API surface is preferred.
-  * **`errors.throw` vs `errors.create`:** Update `throw` to internally call `create` so that `onCreate` hooks are guaranteed to run exactly once per error.

@@ -64,7 +64,7 @@ export const errors = errata({
 })
 
 // Usage
-errors.throw('auth.invalid_token', { reason: 'expired' })
+throw errors.create('auth.invalid_token', { reason: 'expired' })
 const err = errors.create('auth.rate_limited') // uses default retryAfter
 
 if (errors.hasTag(err, 'auth')) {

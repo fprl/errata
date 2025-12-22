@@ -110,11 +110,6 @@ export interface ErrataInstance<TCodes extends CodesRecord> {
     code: C,
     ...details: DetailsParam<TCodes, C>
   ) => ErrataErrorFor<TCodes, C>
-  /** Create and throw an ErrataError for a known code. */
-  throw: <C extends CodeOf<TCodes>>(
-    code: C,
-    ...details: DetailsParam<TCodes, C>
-  ) => never
   /** Normalize unknown errors into ErrataError, using an optional fallback code. */
   ensure: {
     <C extends CodeOf<TCodes> | InternalCode>(
@@ -335,15 +330,6 @@ export function errata<
   }
 
   /** Create and throw an ErrataError for a known code. */
-  const throwFn = <C extends AllCodeOf>(
-    code: C,
-    ...details: DetailsParam<AllCodes, C>
-  ): never => {
-    // create() already runs onCreate hooks
-    const err = createFn(code, ...(details as DetailsParam<AllCodes, C>))
-    throw err
-  }
-
   /** Serialize an ErrataError for transport (server → client). */
   const serialize = <C extends BoundaryCode>(
     err: BoundaryErrataError<AllCodes, C>,
@@ -530,8 +516,6 @@ export function errata<
   return {
     ErrataError,
     create,
-    /** Create and throw an ErrataError for a known code. */
-    throw: throwFn,
     /** Normalize unknown errors into ErrataError, using an optional fallback code. */
     ensure,
     /** Promise helper that returns a `[data, error]` tuple without try/catch. */

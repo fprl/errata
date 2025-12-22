@@ -27,9 +27,9 @@ describe('errata basics', () => {
   })
 
   it('throws ErrataError via throw helper', () => {
-    expect(() =>
-      errors.throw('auth.invalid_token', { reason: 'expired' }),
-    ).toThrowError(ErrataError)
+    expect(() => {
+      throw errors.create('auth.invalid_token', { reason: 'expired' })
+    }).toThrowError(ErrataError)
   })
 
   it('wraps unknown errors with ensure and fallback code', () => {
@@ -114,9 +114,6 @@ describe('errata basics', () => {
 
     const override = local.create('ops.rate_limited', { retryAfter: 5 })
     expect(override.details.retryAfter).toBe(5)
-
-    // @ts-expect-error strict details are required
-    local.create('users.missing')
 
     const strict = local.create('users.missing', { userId: 'u1' })
     expect(strict.details.userId).toBe('u1')

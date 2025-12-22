@@ -362,7 +362,9 @@ describe('plugin onCreate side effects', () => {
       plugins: [loggingPlugin] as const,
     })
 
-    expect(() => errors.throw('billing.declined', { reason: 'test' })).toThrow(ErrataError)
+    expect(() => {
+      throw errors.create('billing.declined', { reason: 'test' })
+    }).toThrow(ErrataError)
     expect(logSpy).toHaveBeenCalledWith('billing.declined')
   })
 

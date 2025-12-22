@@ -31,21 +31,31 @@ interface ErrataPlugin<TPluginCodes extends CodeConfigRecord> {
   codes?: TPluginCodes
 
   /**
-   * Hook: Input Mapping
+   * Hook: Unknown Mapping
    * Runs inside `errors.ensure(err)`.
    * @param error - The raw unknown error being ensured.
    * @param ctx - The errata instance (restricted context).
    * @returns ErrataError instance OR { code, details } OR null (to pass).
    */
-  onEnsure?: (error: unknown, ctx: ErrataContext) => ErrataError | { code: string, details?: any } | null
+  onUnknown?: (error: unknown, ctx: ErrataContext) => ErrataError | { code: string, details?: any } | null
 
   /**
    * Hook: Side Effects
-   * Runs synchronously inside `errors.create()` (and by extension `throw`).
+   * Runs synchronously inside `errors.create()`.
    * @param error - The fully formed ErrataError instance.
    * @param ctx - The errata instance.
    */
   onCreate?: (error: ErrataError, ctx: ErrataContext) => void
+
+  /**
+   * Hook: Serialization Adaptation
+   * Runs inside `errors.serialize(err)`.
+   * @param payload - The current serialized payload (mutable).
+   * @param error - The original ErrataError instance.
+   * @param ctx - The errata instance.
+   * @returns A SerializedError (can be the same object or a modified clone).
+   */
+  onSerialize?: (payload: SerializedError, error: ErrataError, ctx: ErrataContext) => SerializedError
 }
 ```
 
@@ -70,7 +80,7 @@ The `errata` factory must be updated to accept a `plugins` array.
 1.  **`errors.ensure(err)` Flow:**
 
       * Iterate through `plugins` in order.
-      * Call `plugin.onEnsure(err, ctx)`.
+      * Call `plugin.onUnknown(err, ctx)`.
       * **Stop** at the first plugin that returns a non-null value.
       * Use that value to return the final `ErrataError`.
       * *Fallback:* If no plugin handles it, proceed with standard normalization (check `instanceof Error`, etc.).
@@ -81,6 +91,12 @@ The `errata` factory must be updated to accept a `plugins` array.
       * Iterate through `plugins`.
       * Call `plugin.onCreate(error, ctx)` for **all** plugins (side effects are independent).
       * Wrap each call in try/catch; if an error occurs, `console.error('errata: plugin [name] crashed in onCreate', err)`.
+
+3.  **`errors.serialize(err)` Flow:**
+
+      * Build base payload via `err.toJSON()`.
+      * Iterate through `plugins` in order.
+      * Call `plugin.onSerialize(payload, error, ctx)` when defined and use its return value as the new payload.
 
 ### Plugin Validation (at initialization)
 

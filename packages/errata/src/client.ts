@@ -6,10 +6,13 @@ import type {
   CodeOf,
   CodesForTag,
   CodesRecord,
+  ErrataClientErrorForCodes,
   ErrataClientPlugin,
-  MatchingErrataClientError,
-  Pattern,
-  PatternInput,
+  InternalCode,
+  InternalDetails,
+  MatchingErrataClientErrorForCodes,
+  PatternForCodes,
+  PatternInputForCodes,
 } from './types'
 
 import { LIB_NAME } from './types'
@@ -17,8 +20,7 @@ import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matchin
 
 // ─── Client Types ─────────────────────────────────────────────────────────────
 
-type InternalClientCode = 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
-type ClientCode<TCodes extends CodesRecord> = CodeOf<TCodes> | InternalClientCode
+type ClientCode<TCodes extends CodesRecord> = CodeOf<TCodes> | InternalCode
 
 export class ErrataClientError<C extends string = string, D = unknown> extends Error {
   override readonly name = 'ErrataClientError'
@@ -47,11 +49,21 @@ export class ErrataClientError<C extends string = string, D = unknown> extends E
 /**
  * Client match handlers object type.
  */
-export type ClientMatchHandlers<TCodes extends CodesRecord, R> = {
-  [K in Pattern<TCodes>]?: (e: MatchingErrataClientError<TCodes, K>) => R
+type ClientMatchHandlersForUnion<
+  TCodes extends CodesRecord,
+  TUnion extends string,
+  R,
+> = {
+  [K in PatternForCodes<TUnion>]?: (e: MatchingErrataClientErrorForCodes<TCodes, TUnion, K>) => R
 } & {
-  default?: (e: ErrataClientError<ClientCode<TCodes>>) => R
+  default?: (e: ErrataClientErrorForCodes<TCodes, TUnion>) => R
 }
+
+export type ClientMatchHandlers<TCodes extends CodesRecord, R> = ClientMatchHandlersForUnion<
+  TCodes,
+  ClientCode<TCodes>,
+  R
+>
 
 /**
  * Client-side surface derived from a server `errors` type.
@@ -60,40 +72,53 @@ export interface ErrorClient<TCodes extends CodesRecord> {
   /** Client-side ErrataError constructor for instanceof checks. */
   ErrataError: new (
     payload: SerializedError<ClientCode<TCodes>, any>
-  ) => ErrataClientError<ClientCode<TCodes>, any>
+  ) => ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>
   /** Turn a serialized payload into a client error instance. */
   deserialize: (
     payload: unknown,
-  ) => ErrataClientError<ClientCode<TCodes>, any>
+  ) => ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
    */
-  is: <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
-    err: unknown,
-    pattern: P,
-  ) => err is MatchingErrataClientError<TCodes, P>
+  is: {
+    <C extends ClientCode<TCodes>, P extends PatternInputForCodes<C> | readonly PatternInputForCodes<C>[]>(
+      err: ErrataClientErrorForCodes<TCodes, C>,
+      pattern: P,
+    ): err is MatchingErrataClientErrorForCodes<TCodes, C, P>
+    (
+      err: unknown,
+      pattern: PatternInputForCodes<ClientCode<TCodes>> | readonly PatternInputForCodes<ClientCode<TCodes>>[],
+    ): boolean
+  }
   /**
    * Pattern matcher over codes with priority: exact match > longest wildcard > default.
    * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
    */
-  match: <R>(
-    err: unknown,
-    handlers: ClientMatchHandlers<TCodes, R>,
-  ) => R | undefined
+  match: {
+    <C extends ClientCode<TCodes>, R>(
+      err: ErrataClientErrorForCodes<TCodes, C>,
+      handlers: ClientMatchHandlersForUnion<TCodes, C, R>,
+    ): R | undefined
+    <R>(
+      err: unknown,
+      handlers: ClientMatchHandlersForUnion<TCodes, ClientCode<TCodes>, R>,
+    ): R | undefined
+  }
   /** Check whether an error carries a given tag. */
   hasTag: <TTag extends string>(
     err: unknown,
     tag: TTag,
-  ) => err is MatchingErrataClientError<
+  ) => err is MatchingErrataClientErrorForCodes<
     TCodes,
+    CodeOf<TCodes>,
     Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>
   >
   /** Promise helper that returns a tuple without try/catch. */
   safe: <T>(
     promise: Promise<T>,
   ) => Promise<
-    [data: T, error: null] | [data: null, error: ErrataClientError<ClientCode<TCodes>, any>]
+    [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>]
   >
 }
 
@@ -119,9 +144,10 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
 
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
-  type ClientCode = Code | 'be.unknown_error' | 'be.deserialization_failed' | 'be.network_error'
-  type TaggedErrataClientError<TTag extends string> = MatchingErrataClientError<
+  type ClientBoundaryCode = ClientCode<TCodes>
+  type TaggedErrataClientError<TTag extends string> = MatchingErrataClientErrorForCodes<
     TCodes,
+    Code,
     Extract<CodesForTag<TCodes, TTag>, Code>
   >
 
@@ -141,16 +167,16 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const getContext = (): ClientContext => ({ config })
 
   const internal = (
-    code: Extract<ClientCode, `be.${string}`>,
+    code: InternalCode,
     raw: unknown,
-  ): ErrataClientError<ClientCode, { raw: unknown }> => {
-    return new ErrataClientError<ClientCode, { raw: unknown }>({
+  ): ErrataClientErrorForCodes<TCodes, InternalCode> => {
+    return new ErrataClientError<InternalCode, InternalDetails>({
       __brand: LIB_NAME,
       code,
       message: code,
       details: { raw },
       tags: [],
-    })
+    }) as ErrataClientErrorForCodes<TCodes, InternalCode>
   }
 
   /** Run onCreate hooks for all plugins (side effects are independent). */
@@ -171,7 +197,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   /** Turn an unknown payload into a client error instance with defensive checks. */
   const deserialize = (
     payload: unknown,
-  ): ErrataClientError<ClientCode, any> => {
+  ): ErrataClientErrorForCodes<TCodes, ClientBoundaryCode> => {
     // Try plugin onDeserialize hooks (first non-null wins)
     const ctx = getContext()
     for (const plugin of plugins) {
@@ -190,18 +216,18 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     }
 
     // Standard deserialization logic
-    let error: ErrataClientError<ClientCode, any>
+    let error: ErrataClientErrorForCodes<TCodes, ClientBoundaryCode>
     if (payload && typeof payload === 'object') {
       const withCode = payload as { code?: unknown }
       if (typeof withCode.code === 'string') {
-        error = new ErrataClientError(withCode as SerializedError<ClientCode, any>)
+        error = new ErrataClientError(withCode as SerializedError<ClientBoundaryCode, any>)
       }
       else {
-        error = internal('be.deserialization_failed', payload)
+        error = internal('errata.deserialization_failed', payload)
       }
     }
     else {
-      error = internal('be.unknown_error', payload)
+      error = internal('errata.unknown_error', payload)
     }
 
     runOnCreateHooks(error)
@@ -209,34 +235,32 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   }
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
-  const is = <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
+  const is = ((
     err: unknown,
-    pattern: P,
-  ): err is MatchingErrataClientError<TCodes, P> => {
+    pattern: PatternInputForCodes<ClientBoundaryCode> | readonly PatternInputForCodes<ClientBoundaryCode>[],
+  ): boolean => {
     if (!(err instanceof ErrataClientError))
       return false
 
     const patterns = Array.isArray(pattern) ? pattern : [pattern]
     return patterns.some(p => matchesPattern(err.code, p as string))
-  }
+  }) as ErrorClient<TCodes>['is']
 
   /** Pattern matcher with priority: exact match > longest wildcard > default. */
-  const match = <R>(
+  const match = ((
     err: unknown,
-    handlers: ClientMatchHandlers<TCodes, R>,
-  ): R | undefined => {
-    if (!(err instanceof ErrataClientError)) {
-      return (handlers as any).default?.(err)
-    }
+    handlers: ClientMatchHandlersForUnion<TCodes, ClientBoundaryCode, any>,
+  ): any => {
+    const errataErr = err instanceof ErrataClientError ? err : deserialize(err)
 
     const handlerKeys = Object.keys(handlers).filter(k => k !== 'default')
-    const matchedPattern = findBestMatchingPattern(err.code, handlerKeys)
+    const matchedPattern = findBestMatchingPattern(errataErr.code, handlerKeys)
     const handler = matchedPattern
       ? (handlers as any)[matchedPattern]
       : (handlers as any).default
 
-    return handler ? handler(err) : undefined
-  }
+    return handler ? handler(errataErr) : undefined
+  }) as ErrorClient<TCodes>['match']
 
   /** Check whether an error carries a given tag. */
   const hasTag = <TTag extends string>(
@@ -252,7 +276,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
   const safe = async <T>(
     promise: Promise<T>,
   ): Promise<
-    [data: T, error: null] | [data: null, error: ErrataClientError<ClientCode, any>]
+    [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientBoundaryCode>]
   > => {
     try {
       const data = await promise
@@ -264,11 +288,9 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
       }
 
       if (err instanceof TypeError) {
-        return [null, internal('be.network_error', err)]
-      }
-
-      if (err && typeof err === 'object') {
-        return [null, deserialize(err)]
+        const error = internal('errata.network_error', err)
+        runOnCreateHooks(error)
+        return [null, error]
       }
 
       return [null, deserialize(err)]

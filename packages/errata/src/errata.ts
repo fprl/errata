@@ -4,25 +4,32 @@ import type {
   CodesForTag,
   CodesRecord,
   DetailsArg,
-  DetailsOf,
+  // DetailsOf,
   ErrataConfig,
   ErrataContext,
+  ErrataErrorForCodes,
   ErrataPlugin,
+  InternalCode,
+  InternalDetails,
   LogLevel,
-  MatchingErrataError,
+  MatchingErrataErrorForCodes,
   MergePluginCodes,
-  Pattern,
-  PatternInput,
+  PatternForCodes,
+  PatternInputForCodes,
 } from './types'
 
 import { ErrataError, isSerializedError, resolveMessage } from './errata-error'
 import { LIB_NAME } from './types'
 import { findBestMatchingPattern, matchesPattern } from './utils/pattern-matching'
 
-type ErrataErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = ErrataError<
-  C,
-  DetailsOf<TCodes, C>
+type ErrataErrorFor<TCodes extends CodesRecord, C extends CodeOf<TCodes>> = ErrataErrorForCodes<
+  TCodes,
+  C
 >
+type BoundaryErrataError<
+  TCodes extends CodesRecord,
+  C extends CodeOf<TCodes> | InternalCode,
+> = ErrataErrorForCodes<TCodes, C>
 
 type DetailsParam<TCodes extends CodesRecord, C extends CodeOf<TCodes>>
   = undefined extends DetailsArg<TCodes, C>
@@ -32,7 +39,17 @@ type DetailsParam<TCodes extends CodesRecord, C extends CodeOf<TCodes>>
 type TaggedErrataError<
   TCodes extends CodesRecord,
   TTag extends string,
-> = MatchingErrataError<TCodes, Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>>
+> = MatchingErrataErrorForCodes<TCodes, CodeOf<TCodes>, Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>>
+
+type MatchHandlersForUnion<
+  TCodes extends CodesRecord,
+  TUnion extends string,
+  R,
+> = {
+  [K in PatternForCodes<TUnion>]?: (e: MatchingErrataErrorForCodes<TCodes, TUnion, K>) => R
+} & {
+  default?: (e: ErrataErrorForCodes<TCodes, TUnion>) => R
+}
 
 // ─── Match Handler Types ──────────────────────────────────────────────────────
 
@@ -41,11 +58,7 @@ type TaggedErrataError<
  * Keys are exact codes or wildcard patterns.
  * Values are callbacks receiving the narrowed error type.
  */
-export type MatchHandlers<TCodes extends CodesRecord, R> = {
-  [K in Pattern<TCodes>]?: (e: MatchingErrataError<TCodes, K>) => R
-} & {
-  default?: (e: ErrataErrorFor<TCodes, CodeOf<TCodes>>) => R
-}
+export type MatchHandlers<TCodes extends CodesRecord, R> = MatchHandlersForUnion<TCodes, CodeOf<TCodes>, R>
 
 // ─── Plugin Code Merging ──────────────────────────────────────────────────────
 
@@ -76,8 +89,6 @@ export interface ErrataOptions<
   codes: TCodes
   /** Optional lifecycle plugins (logging, error mapping, monitoring). */
   plugins?: TPlugins
-  /** Optional list of keys to redact via plugins/adapters. */
-  redactKeys?: string[]
   /** Control stack capture; defaults on except production if you pass env. */
   captureStack?: boolean
 }
@@ -97,52 +108,69 @@ export interface ErrataInstance<TCodes extends CodesRecord> {
     ...details: DetailsParam<TCodes, C>
   ) => never
   /** Normalize unknown errors into ErrataError, using an optional fallback code. */
-  ensure: (
-    err: unknown,
-    fallbackCode?: CodeOf<TCodes>,
-  ) => ErrataErrorFor<TCodes, CodeOf<TCodes>>
+  ensure: {
+    <C extends CodeOf<TCodes> | InternalCode>(
+      err: ErrataErrorForCodes<TCodes, C>,
+    ): ErrataErrorForCodes<TCodes, C>
+    (
+      err: unknown,
+      fallbackCode?: CodeOf<TCodes>,
+    ): BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>
+  }
   /** Promise helper that returns a `[data, error]` tuple without try/catch. */
   safe: <T>(
     promise: Promise<T>,
   ) => Promise<
-    [data: T, error: null] | [data: null, error: ErrataErrorFor<TCodes, CodeOf<TCodes>>]
+    [data: T, error: null] | [data: null, error: BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>]
   >
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
    */
-  is: <P extends PatternInput<TCodes> | readonly PatternInput<TCodes>[]>(
-    err: unknown,
-    pattern: P,
-  ) => err is MatchingErrataError<TCodes, P>
+  is: {
+    <C extends CodeOf<TCodes> | InternalCode, P extends PatternInputForCodes<C> | readonly PatternInputForCodes<C>[]>(
+      err: ErrataErrorForCodes<TCodes, C>,
+      pattern: P,
+    ): err is MatchingErrataErrorForCodes<TCodes, C, P>
+    (
+      err: unknown,
+      pattern: PatternInputForCodes<CodeOf<TCodes> | InternalCode> | readonly PatternInputForCodes<CodeOf<TCodes> | InternalCode>[],
+    ): boolean
+  }
   /**
    * Pattern matcher over codes with priority: exact match > longest wildcard > default.
    * Supports exact codes, wildcard patterns (`'auth.*'`), and a `default` handler.
    */
-  match: <R>(
-    err: unknown,
-    handlers: MatchHandlers<TCodes, R>,
-  ) => R | undefined
+  match: {
+    <C extends CodeOf<TCodes> | InternalCode, R>(
+      err: ErrataErrorForCodes<TCodes, C>,
+      handlers: MatchHandlersForUnion<TCodes, C, R>,
+    ): R | undefined
+    <R>(
+      err: unknown,
+      handlers: MatchHandlersForUnion<TCodes, CodeOf<TCodes> | InternalCode, R>,
+    ): R | undefined
+  }
   /** Check whether an error carries a given tag. */
   hasTag: <TTag extends string>(
     err: unknown,
     tag: TTag,
   ) => err is TaggedErrataError<TCodes, TTag>
   /** Serialize an ErrataError for transport (server → client). */
-  serialize: <C extends CodeOf<TCodes>>(
-    err: ErrataErrorFor<TCodes, C>,
-  ) => SerializedError<C, DetailsOf<TCodes, C>>
+  serialize: <C extends CodeOf<TCodes> | InternalCode>(
+    err: BoundaryErrataError<TCodes, C>,
+  ) => SerializedError<C, BoundaryErrataError<TCodes, C>['details']>
   /** Deserialize a payload back into an ErrataError (server context). */
-  deserialize: <C extends CodeOf<TCodes>>(
-    json: SerializedError<C, DetailsOf<TCodes, C>>,
-  ) => ErrataErrorFor<TCodes, C>
+  deserialize: <C extends CodeOf<TCodes> | InternalCode>(
+    json: SerializedError<C, BoundaryErrataError<TCodes, C>['details']>,
+  ) => BoundaryErrataError<TCodes, C>
   /** HTTP helpers (status + `{ error }` body). */
   http: {
     /** Convert unknown errors to HTTP-friendly `{ status, body: { error } }`. */
     from: (
       err: unknown,
       fallbackCode?: CodeOf<TCodes>,
-    ) => { status: number, body: { error: SerializedError<CodeOf<TCodes>> } }
+    ) => { status: number, body: { error: SerializedError<CodeOf<TCodes> | InternalCode> } }
   }
   /** Type-only brand for inferring codes on the client. */
   _codesBrand?: CodeOf<TCodes>
@@ -169,8 +197,14 @@ export function errata<
 }: ErrataOptions<TCodes, TPlugins>): ErrataInstance<MergedCodes<TCodes, TPlugins>> {
   type AllCodes = MergedCodes<TCodes, TPlugins>
   type AllCodeOf = CodeOf<AllCodes>
+  type BoundaryCode = AllCodeOf | InternalCode
 
   const defaultLogLevel: LogLevel = 'error'
+  const internalCodeSet: Record<InternalCode, true> = {
+    'errata.unknown_error': true,
+    'errata.deserialization_failed': true,
+    'errata.network_error': true,
+  }
 
   // Merge user codes with plugin codes
   let mergedCodes = { ...codes } as AllCodes
@@ -195,8 +229,6 @@ export function errata<
     }
   }
 
-  const fallbackCode = Object.keys(mergedCodes)[0] as AllCodeOf | undefined
-
   // Build the config object for plugin context
   const config: ErrataConfig = {
     app,
@@ -217,6 +249,27 @@ export function errata<
     config,
   })
 
+  const createInternalError = (
+    code: InternalCode,
+    raw: unknown,
+    cause?: unknown,
+  ): BoundaryErrataError<AllCodes, InternalCode> => {
+    return new ErrataError<InternalCode, InternalDetails>({
+      app,
+      env,
+      code,
+      message: code,
+      status: defaultStatus,
+      expose: false,
+      retryable: defaultRetryable,
+      logLevel: defaultLogLevel,
+      tags: [],
+      details: { raw },
+      cause,
+      captureStack,
+    }) as BoundaryErrataError<AllCodes, InternalCode>
+  }
+
   /** Create an ErrataError for a known code, with typed details. */
   createFn = <C extends AllCodeOf>(
     code: C,
@@ -229,9 +282,9 @@ export function errata<
 
     const resolvedDetails = (
       details === undefined ? codeConfig.details : details
-    ) as DetailsOf<AllCodes, C>
+    ) as ErrataErrorFor<AllCodes, C>['details']
 
-    const error = new ErrataError<C, DetailsOf<AllCodes, C>>({
+    const error = new ErrataError<C, ErrataErrorFor<AllCodes, C>['details']>({
       app,
       env,
       code,
@@ -243,7 +296,7 @@ export function errata<
       tags: codeConfig.tags ?? [],
       details: resolvedDetails,
       captureStack,
-    })
+    }) as ErrataErrorFor<AllCodes, C>
 
     // Run onCreate hooks for all plugins (side effects are independent)
     const ctx = getContext()
@@ -261,6 +314,19 @@ export function errata<
     return error
   }
 
+  const createBoundaryError = <C extends BoundaryCode>(
+    code: C,
+    details?: any,
+    cause?: unknown,
+  ): BoundaryErrataError<AllCodes, C> => {
+    if (internalCodeSet[code as InternalCode]) {
+      const raw = (details as InternalDetails | undefined)?.raw ?? details
+      return createInternalError(code as InternalCode, raw, cause) as BoundaryErrataError<AllCodes, C>
+    }
+
+    return createFn(code as AllCodeOf, details as any) as BoundaryErrataError<AllCodes, C>
+  }
+
   /** Create and throw an ErrataError for a known code. */
   const throwFn = <C extends AllCodeOf>(
     code: C,
@@ -272,11 +338,11 @@ export function errata<
   }
 
   /** Serialize an ErrataError for transport (server → client). */
-  const serialize = <C extends AllCodeOf>(
-    err: ErrataErrorFor<AllCodes, C>,
-  ): SerializedError<C, DetailsOf<AllCodes, C>> => {
+  const serialize = <C extends BoundaryCode>(
+    err: BoundaryErrataError<AllCodes, C>,
+  ): SerializedError<C, BoundaryErrataError<AllCodes, C>['details']> => {
     const base = err.toJSON()
-    const json: SerializedError<C, DetailsOf<AllCodes, C>> = { ...base }
+    const json: SerializedError<C, BoundaryErrataError<AllCodes, C>['details']> = { ...base }
 
     // Omit details when the code isn't marked as exposable.
     if (!err.expose) {
@@ -287,10 +353,11 @@ export function errata<
   }
 
   /** Deserialize a payload back into an ErrataError (server context). */
-  const deserialize = <C extends AllCodeOf>(
-    json: SerializedError<C, DetailsOf<AllCodes, C>>,
-  ): ErrataErrorFor<AllCodes, C> => {
+  const deserialize = <C extends BoundaryCode>(
+    json: SerializedError<C, BoundaryErrataError<AllCodes, C>['details']>,
+  ): BoundaryErrataError<AllCodes, C> => {
     const payload = json
+    const isInternal = internalCodeSet[payload.code as InternalCode] === true
     const codeConfig = mergedCodes[payload.code as AllCodeOf]
     const message
       = payload.message
@@ -298,30 +365,30 @@ export function errata<
           ? resolveMessage(codeConfig.message, payload.details as any)
           : String(payload.code))
 
-    return new ErrataError<C, DetailsOf<AllCodes, C>>({
+    return new ErrataError<C, BoundaryErrataError<AllCodes, C>['details']>({
       app: payload.app ?? app,
       code: payload.code,
       message,
       status: payload.status ?? codeConfig?.status ?? defaultStatus,
-      expose: codeConfig?.expose ?? defaultExpose,
+      expose: isInternal ? false : codeConfig?.expose ?? defaultExpose,
       retryable: payload.retryable ?? codeConfig?.retryable ?? defaultRetryable,
       logLevel: (payload.logLevel as LogLevel | undefined)
         ?? codeConfig?.logLevel
         ?? defaultLogLevel,
-      tags: payload.tags ?? codeConfig?.tags ?? [],
-      details: payload.details as DetailsOf<AllCodes, C>,
+      tags: isInternal ? [] : payload.tags ?? codeConfig?.tags ?? [],
+      details: payload.details as BoundaryErrataError<AllCodes, C>['details'],
       captureStack,
-    })
+    }) as BoundaryErrataError<AllCodes, C>
   }
 
   /** Normalize unknown errors into ErrataError, using an optional fallback code. */
   ensureFn = (
     err: unknown,
     fallback?: AllCodeOf,
-  ): ErrataErrorFor<AllCodes, AllCodeOf> => {
+  ): BoundaryErrataError<AllCodes, BoundaryCode> => {
     // If already an ErrataError, return as-is
     if (err instanceof ErrataError) {
-      return err as ErrataErrorFor<AllCodes, AllCodeOf>
+      return err as BoundaryErrataError<AllCodes, BoundaryCode>
     }
 
     // Try plugin onEnsure hooks (first non-null wins)
@@ -331,12 +398,11 @@ export function errata<
         try {
           const result = plugin.onEnsure(err, ctx as any)
           if (result !== null) {
-            // If result is already an ErrataError, return it
             if (result instanceof ErrataError) {
-              return result as ErrataErrorFor<AllCodes, AllCodeOf>
+              return result as BoundaryErrataError<AllCodes, BoundaryCode>
             }
-            // Otherwise it's { code, details } - create an ErrataError
-            return createFn(result.code as AllCodeOf, result.details)
+
+            return createBoundaryError(result.code as BoundaryCode, result.details)
           }
         }
         catch (hookError) {
@@ -347,16 +413,14 @@ export function errata<
 
     // Check for serialized errors
     if (isSerializedError(err)) {
-      return deserialize(err as SerializedError<AllCodeOf, any>)
+      return deserialize(err as SerializedError<BoundaryCode, any>)
     }
 
-    // Fallback to default handling
-    const code = fallback ?? fallbackCode
-    if (!code) {
-      throw err
+    if (fallback) {
+      return createBoundaryError(fallback, { cause: err } as any)
     }
 
-    return createFn(code, { cause: err } as any)
+    return createInternalError('errata.unknown_error', err, err)
   }
 
   // Alias for the public interface
@@ -367,7 +431,7 @@ export function errata<
   const safe = async <T>(
     promise: Promise<T>,
   ): Promise<
-    [data: T, error: null] | [data: null, error: ErrataErrorFor<AllCodes, AllCodeOf>]
+    [data: T, error: null] | [data: null, error: BoundaryErrataError<AllCodes, BoundaryCode>]
   > => {
     try {
       const data = await promise
@@ -379,23 +443,23 @@ export function errata<
   }
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
-  const is = <P extends PatternInput<AllCodes> | readonly PatternInput<AllCodes>[]>(
+  const is = ((
     err: unknown,
-    pattern: P,
-  ): err is MatchingErrataError<AllCodes, P> => {
+    pattern: PatternInputForCodes<BoundaryCode> | readonly PatternInputForCodes<BoundaryCode>[],
+  ): boolean => {
     if (!(err instanceof ErrataError))
       return false
 
     const patterns = Array.isArray(pattern) ? pattern : [pattern]
     return patterns.some(p => matchesPattern(err.code, p as string))
-  }
+  }) as ErrataInstance<AllCodes>['is']
 
   /** Pattern matcher with priority: exact match > longest wildcard > default. */
-  const match = <R>(
+  const match = ((
     err: unknown,
-    handlers: MatchHandlers<AllCodes, R>,
-  ): R | undefined => {
-    const errataErr = err instanceof ErrataError ? err : ensure(err)
+    handlers: MatchHandlersForUnion<AllCodes, BoundaryCode, any>,
+  ): any => {
+    const errataErr = err instanceof ErrataError ? err : ensure(err as any)
     const handlerKeys = Object.keys(handlers).filter(k => k !== 'default')
 
     const matchedPattern = findBestMatchingPattern(errataErr.code, handlerKeys)
@@ -404,7 +468,7 @@ export function errata<
       : (handlers as any).default
 
     return handler ? handler(errataErr) : undefined
-  }
+  }) as ErrataInstance<AllCodes>['match']
 
   /** Check whether an error carries a given tag. */
   const hasTag = <TTag extends string>(
@@ -421,7 +485,7 @@ export function errata<
     from(
       err: unknown,
       fallback?: AllCodeOf,
-    ): { status: number, body: { error: SerializedError<AllCodeOf> } } {
+    ): { status: number, body: { error: SerializedError<BoundaryCode> } } {
       const normalized = ensure(err, fallback)
       return {
         status: normalized.status,

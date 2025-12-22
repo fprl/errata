@@ -1,4 +1,4 @@
-import type { CodesOf } from '../src'
+import type { CodesOf, InternalCode } from '../src'
 import type { ErrorCode } from './fixtures'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
@@ -63,7 +63,7 @@ describe('client pattern matching: is()', () => {
     })
 
     it('narrows type for wildcard pattern', () => {
-      const err: unknown = client.deserialize(
+      const err = client.deserialize(
         errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' })),
       )
 
@@ -91,7 +91,7 @@ describe('client pattern matching: is()', () => {
     })
 
     it('narrows type for array of patterns', () => {
-      const err: unknown = client.deserialize(
+      const err = client.deserialize(
         errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' })),
       )
 
@@ -208,6 +208,17 @@ describe('client pattern matching: match()', () => {
 
       expect(result).toBeUndefined()
     })
+
+    it('normalizes non-client errors before matching', () => {
+      const result = client.match('oops', {
+        default: (e) => {
+          expectTypeOf(e.code).toEqualTypeOf<ErrorCode | InternalCode>()
+          return e.code
+        },
+      })
+
+      expect(result).toBe('errata.unknown_error')
+    })
   })
 })
 
@@ -284,17 +295,23 @@ describe('client deserialize (robust)', () => {
 
   it('returns deserialization_failed when code is missing', () => {
     const err = client.deserialize({ message: 'oops' })
-    expect(err.code).toBe('be.deserialization_failed')
-    expect(err.details?.raw).toEqual({ message: 'oops' })
+    expect(err.code).toBe('errata.deserialization_failed')
+    if (err.code === 'errata.deserialization_failed') {
+      const details = err.details as { raw?: unknown } | undefined
+      expect(details?.raw).toEqual({ message: 'oops' })
+    }
   })
 
   it('returns unknown_error for garbage input', () => {
     const err1 = client.deserialize(null)
     const err2 = client.deserialize('error string')
 
-    expect(err1.code).toBe('be.unknown_error')
-    expect(err2.code).toBe('be.unknown_error')
-    expect(err2.details?.raw).toBe('error string')
+    expect(err1.code).toBe('errata.unknown_error')
+    expect(err2.code).toBe('errata.unknown_error')
+    if (err2.code === 'errata.unknown_error') {
+      const details = err2.details as { raw?: unknown } | undefined
+      expect(details?.raw).toBe('error string')
+    }
   })
 })
 
@@ -305,6 +322,10 @@ describe('client safe()', () => {
     const [data, err] = await client.safe(Promise.reject(new TypeError('dns')))
 
     expect(data).toBeNull()
-    expect(err?.code).toBe('be.network_error')
+    expect(err?.code).toBe('errata.network_error')
+
+    if (err) {
+      expectTypeOf(err.code).toEqualTypeOf<ErrorCode | InternalCode>()
+    }
   })
 })

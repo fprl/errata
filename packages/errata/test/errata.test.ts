@@ -1,3 +1,6 @@
+import type { InternalCode } from '../src'
+import type { ErrorCode } from './fixtures'
+
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { code, defineCodes, errata, ErrataError, props } from '../src'
@@ -48,6 +51,17 @@ describe('errata basics', () => {
       'default': e => `default:${e.code}`,
     })
     expect(matched).toBe('auth:expired')
+  })
+
+  it('normalizes unknown errors in match and widens type', () => {
+    const result = errors.match(new Error('boom'), {
+      default: (e) => {
+        expectTypeOf(e.code).toEqualTypeOf<ErrorCode | InternalCode>()
+        return e.code
+      },
+    })
+
+    expect(result).toBe('errata.unknown_error')
   })
 
   it('serializes and deserializes with brand', () => {
@@ -187,10 +201,11 @@ describe('errata basics', () => {
 
       expect(value).toBeNull()
       expect(err).toBeInstanceOf(errors.ErrataError)
-      expect(err?.code).toBe('core.internal_error')
+      expect(err?.code).toBe('errata.unknown_error')
 
       if (err) {
         expectTypeOf(err).toMatchTypeOf<InstanceType<typeof errors.ErrataError>>()
+        expectTypeOf(err.code).toEqualTypeOf<ErrorCode | InternalCode>()
         expectTypeOf(value).toEqualTypeOf<null>()
       }
       else {

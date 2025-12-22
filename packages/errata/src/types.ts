@@ -6,6 +6,15 @@ export const PROPS_DEFAULT = Symbol(`${LIB_NAME}:props-default`)
 
 interface PropsMarker { [PROPS_DEFAULT]?: 'default' | 'strict' }
 
+export type InternalCode
+  = | 'errata.unknown_error'
+    | 'errata.deserialization_failed'
+    | 'errata.network_error'
+
+export interface InternalDetails {
+  raw: unknown
+}
+
 /**
  * Details tagged with defaults from props().
  * Internal marker is stripped from public helpers.
@@ -82,6 +91,15 @@ type ExtractDetails<T> = T extends CodeConfig<infer D>
   ? StripPropsMarker<D> extends void | undefined ? unknown : StripPropsMarker<D>
   : unknown
 
+type DetailsForCode<
+  TCodes extends CodesRecord,
+  C extends string,
+> = C extends CodeOf<TCodes>
+  ? DetailsOf<TCodes, C>
+  : C extends InternalCode
+    ? InternalDetails
+    : unknown
+
 export type DetailsOf<
   TCodes extends CodesRecord,
   TCode extends CodeOf<TCodes>,
@@ -107,38 +125,46 @@ type DotPrefixes<S extends string> = S extends `${infer Head}.${infer Tail}`
   : never
 
 /**
- * Valid wildcard patterns derived from actual code prefixes.
- * Used internally for type narrowing in match handlers.
+ * Valid wildcard patterns derived from actual code prefixes (string unions).
  */
-type ValidWildcards<TCodes extends CodesRecord> = `${DotPrefixes<CodeOf<TCodes>>}.*`
+type ValidWildcardsForCodes<TCodes extends string> = `${DotPrefixes<TCodes>}.*`
 
 /**
  * Pattern type for is() - uses ${string}.* to hide wildcards from autocomplete.
  * Type narrowing still works because MatchingCodes handles the pattern at call site.
  */
-export type PatternInput<TCodes extends CodesRecord>
-  = | CodeOf<TCodes>
+export type PatternInputForCodes<TCodes extends string>
+  = | TCodes
     | `${string}.*`
+
+export type PatternInput<TCodes extends CodesRecord> = PatternInputForCodes<CodeOf<TCodes>>
 
 /**
  * Pattern type for match() handlers - uses enumerated wildcards for proper
  * type narrowing in handler callbacks. Wildcards will appear in autocomplete.
  */
-export type Pattern<TCodes extends CodesRecord>
-  = | CodeOf<TCodes>
-    | ValidWildcards<TCodes>
+export type PatternForCodes<TCodes extends string>
+  = | TCodes
+    | ValidWildcardsForCodes<TCodes>
+
+export type Pattern<TCodes extends CodesRecord> = PatternForCodes<CodeOf<TCodes>>
 
 /**
  * Given a pattern P, resolve which codes from TCodes it matches.
  * - If P is an exact code, returns that code literal.
  * - If P is `'Prefix.*'`, returns a union of all codes starting with `'Prefix.'`.
  */
+export type MatchingCodesFromUnion<
+  TUnion extends string,
+  P extends string,
+> = P extends `${infer Prefix}.*`
+  ? Extract<TUnion, `${Prefix}.${string}`>
+  : Extract<TUnion, P>
+
 export type MatchingCodes<
   TCodes extends CodesRecord,
   P extends string,
-> = P extends `${infer Prefix}.*`
-  ? Extract<CodeOf<TCodes>, `${Prefix}.${string}`>
-  : Extract<CodeOf<TCodes>, P>
+> = MatchingCodesFromUnion<CodeOf<TCodes>, P>
 
 /**
  * Resolve matching codes from a pattern or array of patterns.
@@ -146,18 +172,28 @@ export type MatchingCodes<
 export type ResolveMatchingCodes<
   TCodes extends CodesRecord,
   P,
+> = ResolveMatchingCodesFromUnion<CodeOf<TCodes>, P>
+
+export type ResolveMatchingCodesFromUnion<
+  TUnion extends string,
+  P,
 > = P extends readonly (infer U)[]
-  ? U extends string ? MatchingCodes<TCodes, U> : never
-  : P extends string ? MatchingCodes<TCodes, P> : never
+  ? U extends string ? MatchingCodesFromUnion<TUnion, U> : never
+  : P extends string ? MatchingCodesFromUnion<TUnion, P> : never
 
 /**
  * Helper type that distributes over a code union.
  * For each code C in the union, creates an ErrataError with that specific code and its details.
  */
-type DistributeErrataError<
+export type ErrataErrorForCodes<
   TCodes extends CodesRecord,
-  C extends CodeOf<TCodes>,
-> = C extends unknown ? import('./errata-error').ErrataError<C, DetailsOf<TCodes, C>> : never
+  C extends string,
+> = import('./errata-error').ErrataError<C, DetailsForCode<TCodes, C>>
+
+type DistributeErrataErrorForCodes<
+  TCodes extends CodesRecord,
+  C extends string,
+> = C extends unknown ? ErrataErrorForCodes<TCodes, C> : never
 
 /**
  * Creates a union of ErrataError types for each matching code.
@@ -166,16 +202,27 @@ type DistributeErrataError<
 export type MatchingErrataError<
   TCodes extends CodesRecord,
   P,
-> = DistributeErrataError<TCodes, ResolveMatchingCodes<TCodes, P>>
+> = DistributeErrataErrorForCodes<TCodes, ResolveMatchingCodes<TCodes, P>>
+
+export type MatchingErrataErrorForCodes<
+  TCodes extends CodesRecord,
+  TUnion extends string,
+  P,
+> = DistributeErrataErrorForCodes<TCodes, ResolveMatchingCodesFromUnion<TUnion, P>>
 
 /**
  * Helper type that distributes over a code union for ErrataClientError.
  * For each code C in the union, creates a ErrataClientError with that specific code and its details.
  */
-type DistributeErrataClientError<
+export type ErrataClientErrorForCodes<
   TCodes extends CodesRecord,
-  C extends CodeOf<TCodes>,
-> = C extends unknown ? import('./client').ErrataClientError<C, DetailsOf<TCodes, C>> : never
+  C extends string,
+> = import('./client').ErrataClientError<C, DetailsForCode<TCodes, C>>
+
+type DistributeErrataClientErrorForCodes<
+  TCodes extends CodesRecord,
+  C extends string,
+> = C extends unknown ? ErrataClientErrorForCodes<TCodes, C> : never
 
 /**
  * Creates a union of ErrataClientError types for each matching code.
@@ -184,7 +231,13 @@ type DistributeErrataClientError<
 export type MatchingErrataClientError<
   TCodes extends CodesRecord,
   P,
-> = DistributeErrataClientError<TCodes, ResolveMatchingCodes<TCodes, P>>
+> = DistributeErrataClientErrorForCodes<TCodes, ResolveMatchingCodes<TCodes, P>>
+
+export type MatchingErrataClientErrorForCodes<
+  TCodes extends CodesRecord,
+  TUnion extends string,
+  P,
+> = DistributeErrataClientErrorForCodes<TCodes, ResolveMatchingCodesFromUnion<TUnion, P>>
 
 /**
  * Extracts the prefix from a wildcard pattern (e.g., 'auth.*' -> 'auth').
@@ -237,7 +290,10 @@ export interface ErrataContext<TCodes extends CodesRecord = CodesRecord> {
   /** Create an ErrataError for a known code. */
   create: (code: CodeOf<TCodes>, details?: any) => import('./errata-error').ErrataError<CodeOf<TCodes>, any>
   /** Normalize unknown errors into ErrataError. */
-  ensure: (err: unknown, fallbackCode?: CodeOf<TCodes>) => import('./errata-error').ErrataError<CodeOf<TCodes>, any>
+  ensure: (
+    err: unknown,
+    fallbackCode?: CodeOf<TCodes>,
+  ) => import('./errata-error').ErrataError<CodeOf<TCodes> | InternalCode, any>
   /** Access to instance configuration. */
   config: ErrataConfig
 }

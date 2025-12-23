@@ -1,7 +1,7 @@
 {
   "name": "errata",
   "type": "module",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "packageManager": "pnpm@10.20.0",
   "description": "A typed error registry for TypeScript. Errors are data—define them like it.",
   "author": "Franco P. Romano L. ",

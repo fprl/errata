@@ -328,6 +328,15 @@ describe('client safe()', () => {
       expectTypeOf(err.code).toEqualTypeOf<ErrorCode | InternalCode>()
     }
   })
+
+  it('captures synchronous throws from function input', async () => {
+    const [data, err] = await client.safe(() => {
+      throw new Error('boom')
+    })
+
+    expect(data).toBeNull()
+    expect(err?.code).toBe('errata.unknown_error')
+  })
 })
 
 describe('client onUnknown hook', () => {

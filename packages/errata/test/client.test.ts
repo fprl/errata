@@ -337,6 +337,24 @@ describe('client safe()', () => {
     expect(data).toBeNull()
     expect(err?.code).toBe('errata.unknown_error')
   })
+
+  it('handles async function that rejects', async () => {
+    const [data, err] = await client.safe(async () => {
+      throw new Error('async boom')
+    })
+
+    expect(data).toBeNull()
+    expect(err?.code).toBe('errata.unknown_error')
+  })
+
+  it('returns data from async function that resolves', async () => {
+    const [data, err] = await client.safe(async () => {
+      return { ok: true as const }
+    })
+
+    expect(err).toBeNull()
+    expect(data).toEqual({ ok: true })
+  })
 })
 
 describe('client onUnknown hook', () => {

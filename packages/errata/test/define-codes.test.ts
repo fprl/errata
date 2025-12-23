@@ -1,4 +1,4 @@
-import type { DetailsOf } from '../src'
+import type { DetailsOf } from '../src/types'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
 

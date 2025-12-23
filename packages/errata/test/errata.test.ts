@@ -1,4 +1,4 @@
-import type { InternalCode } from '../src'
+import type { InternalCode } from '../src/types'
 import type { ErrorCode } from './fixtures'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'

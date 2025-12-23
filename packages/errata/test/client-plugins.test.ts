@@ -3,7 +3,7 @@ import type { ErrataClientPlugin } from '../src'
 import type { errors } from './fixtures'
 
 import { describe, expect, it, vi } from 'vitest'
-import { createErrorClient, defineClientPlugin, ErrataClientError } from '../src'
+import { createErrataClient, defineClientPlugin, ErrataClientError } from '../src'
 
 // ─── 5. onDeserialize Adaptation (The "RFC 7807" Case) ────────────────────────
 
@@ -41,7 +41,7 @@ describe('client plugin onDeserialize adaptation', () => {
       },
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [rfc7807Plugin],
     })
 
@@ -60,7 +60,7 @@ describe('client plugin onDeserialize adaptation', () => {
       onDeserialize: () => null,
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [noopPlugin],
     })
 
@@ -78,7 +78,7 @@ describe('client plugin onDeserialize adaptation', () => {
   })
 
   it('returns errata.unknown_error for invalid payloads without plugins', () => {
-    const client = createErrorClient<typeof errors>()
+    const client = createErrataClient<typeof errors>()
 
     const invalidPayload = { no_code_here: true }
     const err = client.deserialize(invalidPayload)
@@ -109,7 +109,7 @@ describe('client plugin onDeserialize adaptation', () => {
       onDeserialize: spyB,
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [pluginA, pluginB],
     })
 
@@ -129,7 +129,7 @@ describe('client plugin onDeserialize adaptation', () => {
       },
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [crashingPlugin],
     })
 
@@ -159,7 +159,7 @@ describe('client plugin onCreate', () => {
       },
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [loggingPlugin],
     })
 
@@ -198,7 +198,7 @@ describe('client plugin onCreate', () => {
       onCreate: error => logSpy(error.code),
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [adapterPlugin, loggingPlugin],
     })
 
@@ -221,7 +221,7 @@ describe('client plugin onCreate', () => {
       onCreate: () => spyB(),
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [pluginA, pluginB],
     })
 
@@ -247,7 +247,7 @@ describe('client plugin onCreate', () => {
       onCreate: () => safeSpy(),
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       plugins: [crashingPlugin, safePlugin],
     })
 
@@ -275,7 +275,7 @@ describe('client plugin onCreate', () => {
       },
     }
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       app: 'my-client-app',
       plugins: [configPlugin],
     })
@@ -292,7 +292,7 @@ describe('client plugin validation', () => {
   it('warns on duplicate plugin names', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    createErrorClient<typeof errors>({
+    createErrataClient<typeof errors>({
       plugins: [
         { name: 'duplicate' },
         { name: 'duplicate' },
@@ -322,7 +322,7 @@ describe('client plugin validation', () => {
       },
     })
 
-    const client = createErrorClient<typeof errors>({
+    const client = createErrataClient<typeof errors>({
       app: 'test-app',
       plugins: [myPlugin],
     })

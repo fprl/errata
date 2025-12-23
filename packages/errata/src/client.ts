@@ -68,7 +68,7 @@ export type ClientMatchHandlers<TCodes extends CodesRecord, R> = ClientMatchHand
 /**
  * Client-side surface derived from a server `errors` type.
  */
-export interface ErrorClient<TCodes extends CodesRecord> {
+export interface ErrataClient<TCodes extends CodesRecord> {
   /** Client-side ErrataError constructor for instanceof checks. */
   ErrataError: new (
     payload: SerializedError<ClientCode<TCodes>, any>
@@ -133,7 +133,7 @@ type InferCodes<T> = T extends ErrataInstance<infer TCodes>
   ? TCodes
   : CodesRecord
 
-export interface ErrorClientOptions {
+export interface ErrataClientOptions {
   /** Optional app identifier for debugging. */
   app?: string
   /** Optional lifecycle plugins (payload adaptation, logging). */
@@ -152,9 +152,9 @@ export interface ErrorClientOptions {
  * Create a client that understands the server codes (type-only).
  * @param options - Optional configuration including plugins.
  */
-export function createErrorClient<TServer extends ErrataInstance<any>>(
-  options: ErrorClientOptions = {},
-): ErrorClient<InferCodes<TServer>> {
+export function createErrataClient<TServer extends ErrataInstance<any>>(
+  options: ErrataClientOptions = {},
+): ErrataClient<InferCodes<TServer>> {
   const { app, plugins = [], onUnknown } = options
 
   type TCodes = InferCodes<TServer>
@@ -302,7 +302,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
 
     const patterns = Array.isArray(pattern) ? pattern : [pattern]
     return patterns.some(p => matchesPattern(err.code, p as string))
-  }) as ErrorClient<TCodes>['is']
+  }) as ErrataClient<TCodes>['is']
 
   /** Pattern matcher with priority: exact match > longest wildcard > default. */
   const match = ((
@@ -318,7 +318,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
       : (handlers as any).default
 
     return handler ? handler(errataErr) : undefined
-  }) as ErrorClient<TCodes>['match']
+  }) as ErrataClient<TCodes>['match']
 
   /** Check whether an error carries a given tag. */
   const hasTag = <TTag extends string>(
@@ -347,7 +347,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     catch (err) {
       return [null, ensure(err)]
     }
-  }) as ErrorClient<TCodes>['safe']
+  }) as ErrataClient<TCodes>['safe']
 
   return {
     ErrataError: ErrataClientError,

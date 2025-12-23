@@ -1,13 +1,13 @@
-import type { CodesOf, InternalCode } from '../src'
+import type { CodesOf, InternalCode } from '../src/types'
 import type { ErrorCode } from './fixtures'
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { createErrorClient } from '../src'
+import { createErrataClient } from '../src'
 import { errors } from './fixtures'
 
 describe('client error client', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   it('deserializes and matches codes', () => {
     const serverErr = errors.create('auth.invalid_token', { reason: 'expired' })
@@ -46,7 +46,7 @@ describe('client error client', () => {
 })
 
 describe('client pattern matching: is()', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   describe('wildcard pattern matching', () => {
     it('matches codes starting with prefix using auth.*', () => {
@@ -116,7 +116,7 @@ describe('client pattern matching: is()', () => {
 })
 
 describe('client pattern matching: match()', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   describe('wildcard handlers', () => {
     it('calls wildcard handler when no exact match', () => {
@@ -223,7 +223,7 @@ describe('client pattern matching: match()', () => {
 })
 
 describe('client hasTag()', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   it('returns true when error has tag', () => {
     const err = client.deserialize(
@@ -277,7 +277,7 @@ describe('client hasTag()', () => {
 })
 
 describe('client deserialize (robust)', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   it('deserializes a valid payload', () => {
     const payload = errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' }))
@@ -316,7 +316,7 @@ describe('client deserialize (robust)', () => {
 })
 
 describe('client safe()', () => {
-  const client = createErrorClient<typeof errors>()
+  const client = createErrataClient<typeof errors>()
 
   it('normalizes network TypeError via ensure (no magic mapping)', async () => {
     const [data, err] = await client.safe(Promise.reject(new TypeError('dns')))
@@ -358,7 +358,7 @@ describe('client safe()', () => {
 })
 
 describe('client onUnknown hook', () => {
-  const client = createErrorClient<typeof errors>({
+  const client = createErrataClient<typeof errors>({
     onUnknown: err => err instanceof TypeError ? 'analytics.event_dropped' : null,
   })
 

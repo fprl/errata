@@ -121,11 +121,14 @@ export interface ErrataInstance<TCodes extends CodesRecord> {
     ): BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>
   }
   /** Promise helper that returns a `[data, error]` tuple without try/catch. */
-  safe: <T>(
-    promise: Promise<T>,
-  ) => Promise<
-    [data: T, error: null] | [data: null, error: BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>]
-  >
+  safe: {
+    <T>(fn: () => T | Promise<T>): Promise<
+      [data: T, error: null] | [data: null, error: BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>]
+    >
+    <T>(promise: Promise<T>): Promise<
+      [data: T, error: null] | [data: null, error: BoundaryErrataError<TCodes, CodeOf<TCodes> | InternalCode>]
+    >
+  }
   /**
    * Type-safe pattern check; supports exact codes, wildcard patterns (`'auth.*'`),
    * and arrays of patterns. Returns a type guard narrowing the error type.
@@ -447,11 +450,15 @@ export function errata<
   const ensure = ensureFn as ErrataInstance<AllCodes>['ensure']
 
   /** Promise helper that returns a `[data, error]` tuple without try/catch. */
-  const safe = async <T>(
-    promise: Promise<T>,
+  const safe = (async <T>(
+    input: Promise<T> | (() => T | Promise<T>),
   ): Promise<
     [data: T, error: null] | [data: null, error: BoundaryErrataError<AllCodes, BoundaryCode>]
   > => {
+    const promise = typeof input === 'function'
+      ? new Promise<T>(resolve => resolve((input as () => T | Promise<T>)()))
+      : input
+
     try {
       const data = await promise
       return [data, null]
@@ -459,7 +466,7 @@ export function errata<
     catch (err) {
       return [null, ensure(err)]
     }
-  }
+  }) as ErrataInstance<AllCodes>['safe']
 
   /** Type-safe pattern check; supports exact codes, wildcard patterns, and arrays. */
   const is = ((

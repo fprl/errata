@@ -119,11 +119,14 @@ export interface ErrorClient<TCodes extends CodesRecord> {
     Extract<CodesForTag<TCodes, TTag>, CodeOf<TCodes>>
   >
   /** Promise helper that returns a tuple without try/catch. */
-  safe: <T>(
-    promise: Promise<T>,
-  ) => Promise<
-    [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>]
-  >
+  safe: {
+    <T>(fn: () => T | Promise<T>): Promise<
+      [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>]
+    >
+    <T>(promise: Promise<T>): Promise<
+      [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientCode<TCodes>>]
+    >
+  }
 }
 
 type InferCodes<T> = T extends ErrataInstance<infer TCodes>
@@ -327,12 +330,16 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     return (err.tags ?? []).includes(tag)
   }
 
-  /** Promise helper returning a tuple without try/catch at call sites. */
-  const safe = async <T>(
-    promise: Promise<T>,
+  /** Promise/helper returning a tuple without try/catch at call sites. */
+  const safe = (async <T>(
+    input: Promise<T> | (() => T | Promise<T>),
   ): Promise<
     [data: T, error: null] | [data: null, error: ErrataClientErrorForCodes<TCodes, ClientBoundaryCode>]
   > => {
+    const promise = typeof input === 'function'
+      ? new Promise<T>(resolve => resolve((input as () => T | Promise<T>)()))
+      : input
+
     try {
       const data = await promise
       return [data, null]
@@ -340,7 +347,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     catch (err) {
       return [null, ensure(err)]
     }
-  }
+  }) as ErrorClient<TCodes>['safe']
 
   return {
     ErrataError: ErrataClientError,

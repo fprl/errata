@@ -209,6 +209,16 @@ describe('errata basics', () => {
         expectTypeOf(value).toEqualTypeOf<number>()
       }
     })
+
+    it('handles synchronous throw from function input', async () => {
+      const [value, err] = await errors.safe(() => {
+        throw new Error('boom')
+      })
+
+      expect(value).toBeNull()
+      expect(err).toBeInstanceOf(errors.ErrataError)
+      expect(err?.code).toBe('errata.unknown_error')
+    })
   })
 
   describe('onUnknown hook', () => {

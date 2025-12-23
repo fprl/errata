@@ -330,7 +330,7 @@ export function createErrorClient<TServer extends ErrataInstance<any>>(
     return (err.tags ?? []).includes(tag)
   }
 
-  /** Promise/helper returning a tuple without try/catch at call sites. */
+  /** Promise helper or function returning a tuple without try/catch at call sites. */
   const safe = (async <T>(
     input: Promise<T> | (() => T | Promise<T>),
   ): Promise<

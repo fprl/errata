@@ -219,6 +219,24 @@ describe('errata basics', () => {
       expect(err).toBeInstanceOf(errors.ErrataError)
       expect(err?.code).toBe('errata.unknown_error')
     })
+
+    it('handles async function that rejects', async () => {
+      const [value, err] = await errors.safe(async () => {
+        throw new Error('async boom')
+      })
+
+      expect(value).toBeNull()
+      expect(err?.code).toBe('errata.unknown_error')
+    })
+
+    it('returns data from async function that resolves', async () => {
+      const [value, err] = await errors.safe(async () => {
+        return { ok: true as const }
+      })
+
+      expect(err).toBeNull()
+      expect(value).toEqual({ ok: true })
+    })
   })
 
   describe('onUnknown hook', () => {

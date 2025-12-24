@@ -95,6 +95,9 @@ importers:
       astro:
         specifier: ^5.6.1
         version: 5.16.6(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)(rollup@4.53.4)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      errata:
+        specifier: workspace:*
+        version: link:../packages/errata
       sharp:
         specifier: ^0.34.2
         version: 0.34.5

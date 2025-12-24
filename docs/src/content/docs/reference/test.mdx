@@ -1,35 +1,64 @@
 ---
 title: Debug Page
-
 ---
 
 import { Code } from 'astro:components'
+import errorsSource from '../../../errors.ts?raw'
 
-export const code = `
-interface Todo {
-  title: string
+## Raw errors.ts
+
+<Code code={errorsSource} lang="ts" />
+
+## Twoslash check
+
+```ts twoslash
+// @filename: errors.ts
+import { defineCodes, errata } from 'errata'
+
+type InvalidCredentialsDetails = { email: string }
+type NotFoundDetails = { table: string; id: string }
+
+export const errors = errata({
+  app: 'docs',
+  codes: defineCodes({
+    auth: {
+      invalid_credentials: {
+        message: ({ details }) => `Invalid credentials for ${details.email}`,
+        status: 401,
+        expose: true,
+        tags: ['auth', 'login'],
+        details: { email: '' } satisfies InvalidCredentialsDetails,
+      },
+      rate_limited: {
+        message: 'Too many attempts, try again later',
+        status: 429,
+        retryable: true,
+        tags: ['auth', 'throttle'],
+      },
+    },
+    db: {
+      not_found: {
+        message: ({ details }) => `${details.table} with id ${details.id} was not found`,
+        status: 404,
+        expose: true,
+        tags: ['db'],
+        details: { table: '', id: '' } satisfies NotFoundDetails,
+      },
+    },
+  }),
+})
+// ---cut---
+// @filename: usage.ts
+import { errors } from './errors'
+
+const err = errors.create('db.not_found', { table: 'users', id: '42' })
+
+if (errors.is(err, 'db.*')) {
+  err.details.id
 }
 
-const todo: Readonly<Todo> = {
-  title: 'Delete inactive users'.toUpperCase(),
-}
-`
-
-Hello world.
-
-{/* <Code
-  code={code}
-  lang="ts"
-/> */}
-
-```ts
-interface Todo {
-  title: string
-}
-```
-
-```ts
-const hi = 'Hello'
-const msg = `${hi}, world`
-//    ^?
+errors.match(err, {
+  'db.not_found': (e) => e.message,
+  default: (e) => e.code,
+})
 ```

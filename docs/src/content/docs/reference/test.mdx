@@ -1,0 +1,35 @@
+---
+title: Debug Page
+
+---
+
+import { Code } from 'astro:components'
+
+export const code = `
+interface Todo {
+  title: string
+}
+
+const todo: Readonly<Todo> = {
+  title: 'Delete inactive users'.toUpperCase(),
+}
+`
+
+Hello world.
+
+{/* <Code
+  code={code}
+  lang="ts"
+/> */}
+
+```ts
+interface Todo {
+  title: string
+}
+```
+
+```ts
+const hi = 'Hello'
+const msg = `${hi}, world`
+//    ^?
+```

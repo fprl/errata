@@ -15,3 +15,8 @@
 Add additional Tailwind styles to this file:
 https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
 */
+
+/* https://github.com/withastro/astro/issues/10382#issuecomment-2200731838 */
+.astro-code {
+  overflow: visible !important;
+}

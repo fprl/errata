@@ -1,0 +1,32 @@
+---
+title: Crossing Boundaries
+description: Serialization and the Lite Client.
+---
+
+Errata is designed to travel. Whether you are sending errors from a Server to a Client, or a Worker to the Main Thread, the data stays structured.
+
+## Serialization
+
+When you need to send an error over the wire, serialize it.
+
+```ts
+// Server / Sender
+const json = errors.serialize(err); 
+// Returns: { code: '...', details: {...}, status: 404 }
+```
+
+By default, details are hidden (redacted) during serialization to prevent leaking sensitive info. You must explicitly set expose: true in your definition to send details
+
+## The Lite Client
+
+If you have a frontend (or another service) that consumes these errors, you don't need to redefine them. You can create a lightweight client that infers types from your main registry.
+
+```ts
+// client-errors.ts
+import { createErrataClient } from 'errata';
+import type { errors } from './server/errors'; // Import Type Only
+
+export const clientErrors = createErrataClient<typeof errors>();
+```
+
+Now clientErrors has match, is, and hasTag with full autocompletion, but zero runtime weight from the definitions.

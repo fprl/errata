@@ -1,0 +1,23 @@
+---
+title: Plugins
+description: Extending functionality.
+---
+
+Plugins allow you to hook into the lifecycle of an error.
+
+## Hooks
+
+* `onCreate`: Runs whenever `errors.create` is called. Great for logging.
+* `onSerialize`: Modify the JSON payload before it leaves the system.
+* `onUnknown`: Intercept unknown errors (like Zod or Prisma errors) and convert them to Errata codes.
+
+## Example: Simple Logger
+
+```ts
+const loggerPlugin = definePlugin({
+  name: 'logger',
+  onCreate: (err) => {
+    console.error(`[${err.code}]`, err.message);
+  }
+});
+```

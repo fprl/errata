@@ -17,9 +17,9 @@ https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
 */
 
 /* https://github.com/withastro/astro/issues/10382#issuecomment-2200731838 */
-.astro-code {
+/* .astro-code {
 	overflow: visible !important;
-}
+} */
 
 /* https://docs.astro.build/en/guides/syntax-highlighting/#customizing-shiki-themes */
 /* https://shiki.style/guide/dual-themes#query-based-dark-mode */

@@ -1,0 +1,52 @@
+---
+title: The Registry
+description: How to define codes, props, and metadata.
+---
+
+The Registry is the heart of Errata. It transforms your errors from strings into a structured schema.
+
+## Structure
+
+You can use a flat structure or nested objects. Both result in dot-notation codes (e.g., `auth.missing_token`).
+
+```ts
+const errors = errata({
+  codes: {
+    'auth.missing_token': { ... }, // Flat
+    database: {
+        connection_failed: { ... } // becomes 'database.connection_failed'
+    }
+  }
+})
+```
+
+## Typed Details (props)
+
+The most powerful feature of Errata is enforcing data shape.
+
+```ts
+import { code, props } from 'errata';
+
+'file.read_error': code({
+  // 1. Required Props
+  details: props<{ path: string; retries: number }>(),
+  
+  // 2. Props with Defaults (Optional at call-site)
+  details: props({ retries: 0 }),
+})
+```
+
+## Metadata
+
+You can attach metadata to errors to help with handling logic later.
+- status: Useful for HTTP APIs or CLI exit codes.
+- tags: Strings for grouping errors (e.g., ['security', 'critical']).
+- retryable: A boolean hint for consumers.
+
+```ts
+'network.timeout': {
+  status: 504,
+  retryable: true,
+  tags: ['network', 'transient']
+}
+```

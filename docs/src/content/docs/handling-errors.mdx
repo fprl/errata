@@ -1,0 +1,48 @@
+---
+title: Handling Errors
+description: Using match, ensure, and tags.
+---
+
+Once defined, you need to handle errors. Errata provides tools to avoid messy `if/else` chains.
+
+## `match`
+
+The cleaner alternative to `switch` statements. It supports wildcards.
+
+```ts
+const result = errors.match(e, {
+  'auth.session.*': () => logout(), // Matches auth.session.expired, etc.
+  'payment.declined': () => showToast('Check your card'),
+  _: () => showToast('Something went wrong') // Default fallback
+});
+```
+
+## hasTag (Recommended)
+
+Instead of coupling your logic to specific error codes, use tags. This is ideal for generic middleware or UI components.
+
+```ts
+// In a UI Component or Global Error Handler
+if (errors.hasTag(e, 'retryable')) {
+  return <Button onClick={retry}>Try Again</Button>;
+}
+
+if (errors.hasTag(e, 'security')) {
+  logToSecurityAudit(e);
+}
+```
+
+## safe (Async Tuple)
+Inspired by Go, this wrapper catches errors for you and returns a tuple.
+
+```ts
+const [data, err] = await errors.safe(() => db.getUser(id));
+
+if (err) {
+  // Handle err
+  return;
+}
+
+// Data is typed and safe to use here
+console.log(data.name);
+```

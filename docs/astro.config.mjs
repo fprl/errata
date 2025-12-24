@@ -8,14 +8,13 @@ import { defineConfig } from 'astro/config'
 export default defineConfig({
   integrations: [
     starlight({
-      title: 'Docs with Tailwind',
-      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+      title: 'Errata',
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/fprl/errata' }],
       sidebar: [
         {
           label: 'Guides',
           items: [
-            // Each item here is one entry in the navigation menu.
-            { label: 'Example Guide', slug: 'guides/example' },
+            { label: 'Quickstart', slug: 'guides/quickstart' },
           ],
         },
         {
@@ -23,6 +22,7 @@ export default defineConfig({
           autogenerate: { directory: 'reference' },
         },
       ],
+      // https://starlight.astro.build/reference/configuration/#expressivecode
       expressiveCode: false,
       customCss: ['./src/styles/global.css', '@shikijs/twoslash/style-rich.css'],
     }),
@@ -32,8 +32,11 @@ export default defineConfig({
   // https://twoslash.netlify.app/refs/notations
   markdown: {
     shikiConfig: {
-      theme: 'material-theme-lighter',
-      transformers: [transformerTwoslash({ rendererRich: true })],
+      themes: {
+        light: 'github-light',
+        dark: 'github-dark',
+      },
+      transformers: [transformerTwoslash({ rendererRich: true, explicitTrigger: true })],
     },
   },
   vite: {

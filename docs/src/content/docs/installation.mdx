@@ -125,9 +125,9 @@ create a client to use the same helpers without redefining codes.
 
 ```ts
 import { createErrataClient } from 'errata'
-import type { errors } from './errors' // type-only import
+import type { errors } from '@api/errors.ts' // type-only import
 
 export const clientErrors = createErrataClient<typeof errors>()
-
-// See Crossing Boundaries for usage examples
 ```
+
+> See the [Crossing Boundaries](/boundaries) for more details on using Errata across services.

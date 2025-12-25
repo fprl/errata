@@ -39,9 +39,8 @@ export default defineConfig({
       pagination: false,
       sidebar: [
         'introduction',
-        'quick-start',
-        'defining-errors',
-        'handling-errors',
+        'installation',
+        'basic-usage',
         'boundaries',
         'plugins',
         'reference',

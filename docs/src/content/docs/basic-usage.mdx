@@ -1,0 +1,123 @@
+---
+title: Basic Usage
+description: Create, throw or return, normalize, match, tag-guard, serialize.
+---
+
+## Create, throw, or return
+
+```ts
+import { errors } from './errors'
+
+// Create and throw
+throw errors.create('auth.invalid_credentials', { email: 'ada@example.com' })
+
+// Create and return (prefer returning when you want to avoid throw)
+function validate(input: unknown) {
+  if (!isEmail(input)) {
+    return errors.create('auth.invalid_credentials', { email: String(input) })
+  }
+  return { ok: true }
+}
+```
+
+## Normalize unknowns (`ensure`)
+
+Turn any unknown into an `ErrataError`. This is the entry point before using the rest of the helpers.
+
+```ts
+function handleIncoming(raw: unknown) {
+  const err = errors.ensure(raw, 'core.internal_error') // optional fallback
+  return errors.match(err, {
+    'auth.invalid_credentials': () => 'login again',
+    'billing.payment_failed': () => 'update card',
+    default: (e) => `unexpected:${e.code}`,
+  })
+}
+```
+
+## Safe tuples (`safe`)
+
+`safe` wraps `ensure` for you and returns `[data, error]`.
+
+```ts
+const [user, error] = await errors.safe(() => findUser('123'))
+
+if (error) {
+  return errors.match(error, {
+    'auth.invalid_credentials': () => 'bad creds',
+    'auth.*': () => 'auth issue',
+    default: () => 'unknown',
+  })
+}
+
+// user is typed here
+renderUser(user)
+```
+
+## Match (exact > wildcard > default)
+
+`match` is synchronous but returns whatever your handlers return (including promises), so you can `await` it when handlers are async.
+
+```ts
+async function charge() {
+  try {
+    await chargeCard()
+  }
+  catch (unknownErr) {
+    const err = errors.ensure(unknownErr)
+    const result = await errors.match(err, {
+      'billing.payment_failed': async (e) => {
+        await logPaymentIssue(e.details.provider)
+        return 'retry'
+      },
+      'auth.*': () => redirect('/login'),
+      default: async (e) => {
+        await logUnknown(e)
+        return 'fallback'
+      },
+    })
+    return result
+  }
+}
+```
+
+## Pattern checks (`is`)
+
+Use `is` after `ensure`/`safe` to narrow codes or guard flows.
+
+```ts
+const [checkout, err] = await errors.safe(() => fetchCheckout())
+if (err && errors.is(err, ['auth.*', 'billing.payment_failed'])) {
+  // err is normalized and narrowed to auth or payment failure
+}
+```
+
+## Tag guards (`hasTag`)
+
+Tags decouple handling from specific codes.
+
+```ts
+const err = errors.create('billing.payment_failed', { provider: 'stripe', amount: 42 })
+
+if (errors.hasTag(err, 'retryable')) {
+  scheduleRetry()
+}
+
+if (errors.hasTag(err, 'auth')) {
+  promptLogin()
+}
+```
+
+## Serialize / deserialize (quick view)
+
+Full detail in Crossing Boundaries, but the essentials:
+
+```ts
+const payload = errors.serialize(
+  errors.create('auth.invalid_credentials', { email: 'ada@example.com' }),
+)
+// details are present because expose: true
+
+const restored = errors.deserialize(payload)
+restored.code    // 'auth.invalid_credentials'
+```

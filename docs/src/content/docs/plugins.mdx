@@ -1,23 +1,88 @@
 ---
 title: Plugins
-description: Extending functionality.
+description: Extend Errata with mappings, logging, scrubbing, and shared codes.
 ---
 
-Plugins allow you to hook into the lifecycle of an error.
+Plugins hook into creation, serialization, and unknown error mapping. They can also inject codes into your registry.
 
-## Hooks
+## Hooks at a glance
 
-* `onCreate`: Runs whenever `errors.create` is called. Great for logging.
-* `onSerialize`: Modify the JSON payload before it leaves the system.
-* `onUnknown`: Intercept unknown errors (like Zod or Prisma errors) and convert them to Errata codes.
+- `codes`: inject more codes (merged after your registry; warns on collisions).
+- `onUnknown(error, ctx)`: map third-party errors to Errata (first non-null wins).
+- `onCreate(error, ctx)`: side effects when an error is created (logging/metrics).
+- `onSerialize(payload, error, ctx)`: scrub or enrich serialized payloads.
 
-## Example: Simple Logger
+## Map third-party errors (Stripe)
 
 ```ts
+import { Stripe } from 'stripe'
+import { code, defineCodes, definePlugin, errata, props } from 'errata'
+
+const myCodes = defineCodes({
+  billing: {
+    payment_failed: code({
+      status: 402,
+      message: ({ details }) => `Payment failed: ${details.reason}`,
+      expose: true,
+      tags: ['payments', 'retryable'] as const,
+      details: props<{ reason: string }>(),
+    }),
+  },
+})
+
+const stripePlugin = definePlugin({
+  name: 'stripe',
+  codes: myCodes,
+  onUnknown: (error) => {
+    if (error instanceof Stripe.errors.StripeError) {
+      return { code: 'billing.payment_failed', details: { reason: error.code ?? 'stripe_error' } }
+    }
+    return null
+  },
+})
+
+export const errors = errata({
+  codes: myCodes,
+  plugins: [stripePlugin],
+})
+```
+
+## Log creations (Sentry, Datadog, etc.)
+
+```ts
+import { definePlugin, errata } from 'errata'
+
+function logToSentry(err: unknown) { /* ... */ }
+
 const loggerPlugin = definePlugin({
   name: 'logger',
-  onCreate: (err) => {
-    console.error(`[${err.code}]`, err.message);
-  }
-});
+  onCreate: (err, ctx) => {
+    logToSentry({ code: err.code, app: ctx.config.app, message: err.message })
+  },
+})
+
+export const errors = errata({
+  app: 'payments',
+  codes: { 'core.internal_error': { message: 'Internal error' } },
+  plugins: [loggerPlugin],
+})
 ```
+
+## Scrub payloads on serialize
+
+```ts
+const scrubPlugin = definePlugin({
+  name: 'scrub',
+  onSerialize: (payload, error) => {
+    if (error.code === 'auth.invalid_credentials') {
+      return { ...payload, details: undefined } // force redaction
+    }
+    return payload
+  },
+})
+```
+
+Notes:
+- Duplicate plugin names warn.
+- Code collisions (plugins vs. base) warn.
+- `onUnknown` stops at the first plugin returning non-null; `onCreate` runs for all.

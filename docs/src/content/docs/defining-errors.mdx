@@ -1,52 +1,119 @@
 ---
 title: The Registry
-description: How to define codes, props, and metadata.
+description: Define codes, details, messages, and metadata.
 ---
 
-The Registry is the heart of Errata. It transforms your errors from strings into a structured schema.
+## On this page
+- Structure
+- Details with props
+- Messages
+- Metadata and defaults
+- Tags
 
 ## Structure
 
-You can use a flat structure or nested objects. Both result in dot-notation codes (e.g., `auth.missing_token`).
+Use `defineCodes` to declare codes as flat strings or nested objects (flattened to dot-notation).
 
 ```ts
-const errors = errata({
-  codes: {
-    'auth.missing_token': { ... }, // Flat
-    database: {
-        connection_failed: { ... } // becomes 'database.connection_failed'
-    }
-  }
+import { code, defineCodes, errata, props } from 'errata'
+
+export const errors = errata({
+  codes: defineCodes({
+    core: {
+      internal_error: { status: 500, message: 'Internal error', tags: ['core'] },
+    },
+    auth: {
+      invalid_credentials: code({
+        status: 401,
+        message: 'Invalid credentials',
+        tags: ['auth', 'login'] as const,
+        details: props<{ email: string }>(),
+      }),
+    },
+    billing: {
+      payment_failed: code({
+        status: 402,
+        message: ({ details }) => `Payment failed for ${details.provider}`,
+        tags: ['payments'] as const,
+        details: props<{ provider: 'stripe' | 'adyen', amount: number }>(),
+      }),
+    },
+  }),
 })
 ```
 
-## Typed Details (props)
+## Details with props
 
-The most powerful feature of Errata is enforcing data shape.
+- `props<T>()`: required at call-site, typed as `T`.
+- `props(defaults)`: optional at call-site; defaults are applied at runtime.
 
 ```ts
-import { code, props } from 'errata';
+rate_limited: code({
+  status: 429,
+  message: ({ details }) => `Retry after ${details.retryAfter}s`,
+  details: props({ retryAfter: 60 }), // call-site optional
+})
 
-'file.read_error': code({
-  // 1. Required Props
-  details: props<{ path: string; retries: number }>(),
-  
-  // 2. Props with Defaults (Optional at call-site)
-  details: props({ retries: 0 }),
+not_found: code({
+  message: ({ details }) => `User ${details.id} not found`,
+  details: props<{ id: string }>(), // call-site required
 })
 ```
 
-## Metadata
+## Messages
 
-You can attach metadata to errors to help with handling logic later.
-- status: Useful for HTTP APIs or CLI exit codes.
-- tags: Strings for grouping errors (e.g., ['security', 'critical']).
-- retryable: A boolean hint for consumers.
+Use a string or a resolver:
 
 ```ts
-'network.timeout': {
-  status: 504,
-  retryable: true,
-  tags: ['network', 'transient']
+{ message: 'Invalid token' }
+{ message: ({ details }) => `Invalid credentials for ${details.email}` }
+```
+
+Resolvers run at creation; serialization keeps the resolved message (re-resolves if missing).
+
+## Metadata and defaults
+
+You can set defaults in `errata({ defaultStatus, defaultExpose, defaultRetryable })` and override per code:
+
+- `status`: number (HTTP or exit code).
+- `expose`: whether `details` survive `serialize`.
+- `retryable`: hint for callers; no retries are performed.
+- `logLevel`: `debug | info | warn | error | fatal` (advisory).
+
+```ts
+export const errors = errata({
+  defaultStatus: 500,
+  defaultExpose: false,
+  defaultRetryable: false,
+  codes: defineCodes({
+    core: {
+      internal_error: { message: 'Internal error' },
+    },
+    billing: {
+      payment_failed: code({
+        status: 402,
+        retryable: true,
+        expose: true,
+        message: ({ details }) => `Payment failed for ${details.provider}`,
+        details: props<{ provider: 'stripe' | 'adyen', amount: number }>(),
+      }),
+    },
+  }),
+})
+```
+
+## Tags
+
+Tags are free-form strings. Use `as const` to let `hasTag` narrow the code union.
+
+```ts
+auth_error: code({
+  message: 'Auth issue',
+  tags: ['auth', 'security'] as const,
+})
+
+// Later
+if (errors.hasTag(err, 'security')) {
+  alertSecurityTeam(err)
 }
 ```

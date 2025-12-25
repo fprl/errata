@@ -1,32 +1,65 @@
 ---
 title: Crossing Boundaries
-description: Serialization and the Lite Client.
+description: Serialize, deserialize, and consume errors elsewhere.
 ---
 
-Errata is designed to travel. Whether you are sending errors from a Server to a Client, or a Worker to the Main Thread, the data stays structured.
+Errata errors are boundary-friendly: serialize them to JSON, send across the wire, and deserialize with type awareness.
 
-## Serialization
-
-When you need to send an error over the wire, serialize it.
+## Serialize (redaction-aware)
 
 ```ts
-// Server / Sender
-const json = errors.serialize(err); 
-// Returns: { code: '...', details: {...}, status: 404 }
+import { errors } from './errors'
+
+const exposed = errors.create('auth.invalid_credentials', { email: 'ada@example.com' })
+const hidden = errors.create('core.internal_error', { secret: 'shh' } as any)
+
+const exposedPayload = errors.serialize(exposed)
+// { code, message, details, status, tags, ... }
+
+const hiddenPayload = errors.serialize(hidden)
+// details omitted because expose was false
 ```
 
-By default, details are hidden (redacted) during serialization to prevent leaking sensitive info. You must explicitly set expose: true in your definition to send details
+Only codes with `expose: true` (or defaultExpose set to true) keep `details` in the payload.
 
-## The Lite Client
+## Deserialize
 
-If you have a frontend (or another service) that consumes these errors, you don't need to redefine them. You can create a lightweight client that infers types from your main registry.
+```ts
+const payload = errors.serialize(
+  errors.create('billing.payment_failed', { provider: 'stripe', amount: 42 }),
+)
+
+const restored = errors.deserialize(payload)
+restored.code    // 'billing.payment_failed'
+restored.message // resolved at creation, or re-resolved if missing
+```
+
+## Consume elsewhere with a lightweight client
 
 ```ts
 // client-errors.ts
-import { createErrataClient } from 'errata';
-import type { errors } from './server/errors'; // Import Type Only
+import { createErrataClient } from 'errata'
+import type { errors } from './errors' // type-only import
 
-export const clientErrors = createErrataClient<typeof errors>();
+export const clientErrors = createErrataClient<typeof errors>()
+
+async function fetchErrorPayload(): Promise<unknown> {
+  const res = await fetch('/api/do-thing')
+  return res.json()
+}
+function redirect(path: string) { /* ... */ }
+function scheduleRetry() { /* ... */ }
+
+const payload = await fetchErrorPayload()
+const err = clientErrors.deserialize(payload)
+
+if (clientErrors.is(err, 'auth.*')) {
+  redirect('/login')
+}
+
+if (clientErrors.hasTag(err, 'retryable')) {
+  scheduleRetry()
+}
 ```
 
-Now clientErrors has match, is, and hasTag with full autocompletion, but zero runtime weight from the definitions.
+Client helpers mirror the server surface (`is`, `match`, `hasTag`, `safe`, `ensure`) but operate on the serialized shape—no need to ship the full registry to the client.

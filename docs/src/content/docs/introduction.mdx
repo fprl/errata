@@ -1,20 +1,18 @@
 ---
 title: Introduction
-description: The philosophy behind Errata.
+description: Errors are data. Treat them like a first-class API.
 ---
 
-In the publishing world, an **Errata** is a document issued after printing that lists the errors discovered in a book and their corrections. It is a single, authoritative source of truth for mistakes.
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-In software, we rarely treat errors with this level of respect. We tend to "wing it"—throwing ad-hoc strings (`throw new Error("User not found")`) deep inside functions. These are untyped, hard to track, and impossible for other systems to handle reliably.
+Programming is hard enough; invisible errors make it worse. We scatter `throw new Error(...)` and hope downstream code “just knows.” The type system can’t help because the shape of errors is implicit.
 
-**Errata** (the library) brings the publishing concept to your code.
+Errata flips that: errors become data with names, typed details, and helpers that make routing, matching, and transport predictable.
 
-### The Mental Model
+- **Registry:** declare every code once; autocomplete everywhere.
+- **Details:** structured payloads per code, enforced by TypeScript.
+- **Helpers:** create, match, tag-guard, serialize/deserialize.
+- **Plugins:** map third-party errors, add codes, log or scrub.
+- **Boundaries:** send errors across processes without losing meaning.
 
-Instead of treating errors as control flow exceptions, we treat them as **Data**.
-
-1.  **The Registry:** You define a "Schema" of everything that can go wrong.
-2.  **The Details:** You define strictly typed props for each error (e.g., a `userId` is required for a `UserNotFound` error).
-3.  **The Usage:** You reference these codes by name.
-
-Whether you are building a CLI, a backend API, or a frontend SPA, this decoupling allows your error logic to travel across boundaries safely.
+Use Errata when you want safety without rewriting your app around a new runtime. Keep your functions, make errors explicit.

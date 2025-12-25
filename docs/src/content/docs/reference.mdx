@@ -1,22 +1,48 @@
 ---
 title: API Reference
-description: Methods and Types.
+description: Methods, hooks, and types at a glance.
 ---
 
-## Instance Methods
+## Instance methods
 
 | Method | Description |
 | :--- | :--- |
-| `create(code, details?)` | Creates a typed `ErrataError`. |
-| `is(err, code)` | Type guard. Checks if an error matches a code or pattern. |
-| `match(err, handlers)` | Pattern matching execution. Selects the best handler. |
-| `hasTag(err, tag)` | Checks if the error definition contains a specific tag. |
-| `ensure(err)` | Guarantees an `ErrataError`. Wraps unknown errors if needed. |
-| `safe(fn)` | Executes a function and returns `[data, error]` tuple. |
-| `serialize(err)` | Converts error to a plain object for transport. |
-| `deserialize(data)` | Rehydrates a plain object back into an `ErrataError`. |
+| `create(code, details?)` | Create a typed `ErrataError`; applies defaults and resolves message. |
+| `ensure(err, fallbackCode?)` | Normalize unknowns into `ErrataError`, honoring plugins/onUnknown. |
+| `safe(promiseOrFn)` | Returns a typed tuple `[data, error]` without try/catch. |
+| `is(err, pattern | pattern[])` | Pattern-aware guard; supports wildcards (`'auth.*'`) and arrays. |
+| `match(err, handlers)` | Picks exact > longest wildcard > `default`; returns handler result. |
+| `hasTag(err, tag)` | Tag guard; narrows to codes carrying that tag. |
+| `serialize(err)` | Branded payload; strips `details` when `expose` is false. |
+| `deserialize(json)` | Rehydrates an `ErrataError`; re-resolves message if missing. |
+| `http.from(err, fallback?)` | `{ status, body: { error } }` helper (uses `serialize`). |
 
-## Types
+## Options (errata)
 
-* `ErrataError`: The Error class instance.
-* `InferOptions<typeof errors>`: Helper to extract input types.
+- `app?`, `env?`: identifiers; `env` stays server-side unless a plugin adds it.
+- `defaultStatus`, `defaultExpose`, `defaultRetryable`: per-code defaults.
+- `codes`: required registry (use `defineCodes`).
+- `plugins?`: optional; merged after your codes.
+- `onUnknown?(error, ctx)`: map unknown inputs; return a code or `null`.
+- `captureStack?`: controls stack capture (defaults on unless production + env).
+
+## Plugin hooks
+
+- `codes`: inject codes (warns on collisions).
+- `onUnknown(error, ctx)`: map third-party errors; first non-null wins.
+- `onCreate(error, ctx)`: side effects on creation (all plugins run).
+- `onSerialize(payload, error, ctx)`: scrub/enrich serialized payload.
+
+## Client surface (`createErrataClient<typeof errors>()`)
+
+- Methods: `deserialize`, `ensure`, `is`, `match`, `hasTag`, `safe`.
+- Uses the same code/detail unions as the server type; no registry shipped.
+- Supports client plugins: `onDeserialize`, `onCreate`.
+
+## Types and helpers
+
+- `ErrataError`, `ErrataClientError`, `SerializedError`.
+- `CodesOf<typeof errors>`: extract code union from an instance.
+- `PatternInput`, `PatternInputForCodes`: accepted patterns for `is`.
+- `PatternForCodes`: patterns for `match` handlers (includes wildcards).
+- `props<T>()` vs `props(defaults)`: required vs optional-with-defaults details.

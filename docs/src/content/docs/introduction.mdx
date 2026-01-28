@@ -1,0 +1,18 @@
+---
+title: Introduction
+description: Errors are data. Treat them like a first-class API.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Programming is hard enough; invisible errors make it worse. We scatter `throw new Error(...)` and hope downstream code “just knows.” The type system can’t help because the shape of errors is implicit.
+
+Errata flips that: errors become data with names, typed details, and helpers that make routing, matching, and transport predictable.
+
+- **Registry:** declare every code once; autocomplete everywhere.
+- **Details:** structured payloads per code, enforced by TypeScript.
+- **Helpers:** create, match, tag-guard, serialize/deserialize.
+- **Plugins:** map third-party errors, add codes, log or scrub.
+- **Boundaries:** send errors across processes without losing meaning.
+
+Use Errata when you want safety without rewriting your app around a new runtime. Keep your functions, make errors explicit.

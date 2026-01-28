@@ -1,0 +1,133 @@
+---
+title: Installation
+description: Install Errata, define your registry, and (optionally) prepare a client.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install The Package
+
+<Tabs syncKey="pkg-manager">
+  <TabItem label="npm">
+
+```bash
+npm install errata
+```
+
+  </TabItem>
+  <TabItem label="pnpm">
+
+```bash
+pnpm add errata
+```
+
+  </TabItem>
+  <TabItem label="yarn">
+
+```bash
+yarn add errata
+```
+
+  </TabItem>
+  <TabItem label="bun">
+
+```bash
+bun add errata
+```
+
+  </TabItem>
+</Tabs>
+
+## Define Your Registry
+
+<Tabs syncKey="registry">
+  <TabItem label="Nested codes">
+
+```ts
+// errors.ts
+import { code, defineCodes, errata, props } from 'errata'
+
+export const errors = errata({
+  defaultStatus: 500,
+  codes: defineCodes({
+    core: {
+      internal_error: { message: 'Internal error', tags: ['core'] },
+    },
+    auth: {
+      invalid_credentials: code({
+        status: 401,
+        message: ({ details }) => `Invalid credentials for ${details.email}`,
+        expose: true,
+        tags: ['auth', 'login'] as const,
+        details: props<{ email: string }>(), // required
+      }),
+      rate_limited: code({
+        status: 429,
+        message: ({ details }) => `Retry after ${details.retryAfter}s`,
+        retryable: true,
+        tags: ['auth', 'retryable'] as const,
+        details: props({ retryAfter: 60 }), // default applied when omitted
+      }),
+    },
+    billing: {
+      payment_failed: code({
+        status: 402,
+        message: ({ details }) => `Payment failed for ${details.provider}`,
+        retryable: true,
+        tags: ['payments', 'retryable'] as const,
+        details: props<{ provider: 'stripe' | 'adyen', amount: number, note?: string }>(), // required fields + optional note
+      }),
+    },
+  }),
+})
+```
+
+  </TabItem>
+  <TabItem label="Flat codes">
+
+```ts
+// errors.ts
+import { code, defineCodes, errata, props } from 'errata'
+
+export const errors = errata({
+  codes: defineCodes({
+    'core.internal_error': { message: 'Internal error' },
+    'auth.invalid_credentials': code({
+      status: 401,
+      message: ({ details }) => `Invalid credentials for ${details.email}`,
+      expose: true,
+      tags: ['auth', 'login'] as const,
+      details: props<{ email: string }>(), // required
+    }),
+    'auth.rate_limited': code({
+      status: 429,
+      message: ({ details }) => `Retry after ${details.retryAfter}s`,
+      retryable: true,
+      details: props({ retryAfter: 60 }), // default applied when omitted
+    }),
+    'billing.payment_failed': code({
+      status: 402,
+      message: ({ details }) => `Payment failed for ${details.provider ?? 'unknown'}`,
+      tags: ['payments'] as const,
+      details: props<{ provider?: string, amount?: number }>(), // optional fields example
+    }),
+  }),
+})
+```
+
+  </TabItem>
+</Tabs>
+
+## Create A Client (optional)
+
+If you will consume serialized errors from another service (e.g., full-stack apps), 
+create a client to use the same helpers without redefining codes.
+
+```ts
+import { createErrataClient } from 'errata'
+import type { errors } from '@api/errors.ts' // type-only import
+
+export const clientErrors = createErrataClient<typeof errors>()
+```
+
+> See the [Crossing Boundaries](/boundaries) for more details on using Errata across services.

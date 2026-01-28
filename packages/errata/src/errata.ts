@@ -89,6 +89,8 @@ export interface ErrataOptions<
   codes: TCodes
   /** Optional lifecycle plugins (logging, error mapping, monitoring). */
   plugins?: TPlugins
+  /** Allow plugins to override existing codes (default false: collisions throw). */
+  allowPluginOverride?: boolean
   /**
    * Called when normalizing an unknown value.
    * Return a known code to map it, or null/undefined to fallback to errata.unknown_error.
@@ -97,7 +99,7 @@ export interface ErrataOptions<
     error: unknown,
     ctx: ErrataContext<MergedCodes<TCodes, TPlugins>>,
   ) => CodeOf<TCodes> | null | undefined
-  /** Control stack capture; defaults on except production if you pass env. */
+  /** Control stack capture; defaults to true. */
   captureStack?: boolean
 }
 
@@ -199,6 +201,7 @@ export function errata<
   defaultExpose = false,
   defaultRetryable = false,
   plugins = [] as unknown as TPlugins,
+  allowPluginOverride = false,
   onUnknown,
   captureStack = true,
 }: ErrataOptions<TCodes, TPlugins>): ErrataInstance<MergedCodes<TCodes, TPlugins>> {
@@ -227,7 +230,11 @@ export function errata<
     if (plugin.codes) {
       for (const code of Object.keys(plugin.codes)) {
         if (code in mergedCodes) {
-          console.warn(`${LIB_NAME}: Plugin "${plugin.name}" defines code "${code}" which already exists`)
+          const message = `${LIB_NAME}: Plugin "${plugin.name}" defines code "${code}" which already exists`
+          if (!allowPluginOverride) {
+            throw new Error(message)
+          }
+          console.warn(`${message} (overridden by plugin because allowPluginOverride=true)`)
         }
       }
       mergedCodes = { ...mergedCodes, ...plugin.codes } as AllCodes

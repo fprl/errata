@@ -20,6 +20,20 @@ describe('defineCodes', () => {
     expect(codes['auth.invalid_token'].status).toBe(401)
   })
 
+  it('throws on deeper than one-level nesting', () => {
+    expect(() => {
+      defineCodes({
+        level1: {
+          level2: {
+            level3: {
+              message: 'nope',
+            },
+          },
+        },
+      })
+    }).toThrow(/one level/)
+  })
+
   it('exposes typed details per code', () => {
     type PaymentDetails = DetailsOf<typeof codes, 'billing.payment_failed'>
     type InvalidTokenDetails = DetailsOf<typeof codes, 'auth.invalid_token'>

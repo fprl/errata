@@ -45,7 +45,7 @@ function isCodeConfig(value: unknown): value is CodeConfig {
   return !!value && typeof value === 'object' && 'message' in value
 }
 
-function flattenCodes(input: Record<string, any>, prefix = ''): CodesRecord {
+function flattenCodes(input: Record<string, any>, prefix = '', depth = 0): CodesRecord {
   const result: CodesRecord = {}
 
   for (const [key, value] of Object.entries(input)) {
@@ -56,7 +56,12 @@ function flattenCodes(input: Record<string, any>, prefix = ''): CodesRecord {
     }
 
     if (value && typeof value === 'object') {
-      Object.assign(result, flattenCodes(value, fullKey))
+      if (depth >= 1) {
+        throw new Error(
+          `errata: codes nesting supports only one level (found nested group at "${fullKey}")`,
+        )
+      }
+      Object.assign(result, flattenCodes(value, fullKey, depth + 1))
     }
   }
 

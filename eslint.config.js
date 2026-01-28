@@ -5,6 +5,6 @@ export default antfu(
   {
     type: 'lib',
     pnpm: true,
-    ignores: ['**/*.md', 'tsconfig.*'],
+    ignores: ['**/*.md', 'tsconfig.*', 'docs/package.json'],
   },
 )

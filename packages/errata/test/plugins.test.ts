@@ -84,7 +84,21 @@ describe('plugin code injection', () => {
     warnSpy.mockRestore()
   })
 
-  it('warns on code collision between plugins and base codes', () => {
+  it('throws on code collision between plugins and base codes', () => {
+    const conflictingPlugin: ErrataPlugin<typeof baseCodes> = {
+      name: 'conflicting',
+      codes: baseCodes, // Reusing the same codes
+    }
+
+    expect(() => {
+      errata({
+        codes: baseCodes,
+        plugins: [conflictingPlugin] as const,
+      })
+    }).toThrowError(/already exists/)
+  })
+
+  it('allows overrides when allowPluginOverride is true (with warning)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     const conflictingPlugin: ErrataPlugin<typeof baseCodes> = {
@@ -95,10 +109,11 @@ describe('plugin code injection', () => {
     errata({
       codes: baseCodes,
       plugins: [conflictingPlugin] as const,
+      allowPluginOverride: true,
     })
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('already exists'),
+      expect.stringContaining('overridden by plugin'),
     )
     warnSpy.mockRestore()
   })

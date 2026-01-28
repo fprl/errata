@@ -1,0 +1,78 @@
+---
+title: Crossing Boundaries
+description: Serialize, deserialize, and consume errors elsewhere.
+---
+
+Errata errors are boundary-friendly: serialize them to JSON, send across the wire, and deserialize with type awareness.
+
+## Serialize (redaction-aware)
+
+```ts
+import { errors } from './errors'
+
+const exposed = errors.create('auth.invalid_credentials', { email: 'ada@example.com' })
+const hidden = errors.create('core.internal_error', { secret: 'shh' } as any)
+
+const exposedPayload = errors.serialize(exposed)
+// { code, message, details, status, tags, ... }
+
+const hiddenPayload = errors.serialize(hidden)
+// details omitted because expose was false
+```
+
+Only codes with `expose: true` (or defaultExpose set to true) keep `details` in the payload.
+
+## Deserialize
+
+```ts
+const payload = errors.serialize(
+  errors.create('billing.payment_failed', { provider: 'stripe', amount: 42 }),
+)
+
+const restored = errors.deserialize(payload)
+restored.code    // 'billing.payment_failed'
+restored.message // resolved at creation, or re-resolved if missing
+```
+
+## Consume elsewhere with a lightweight client
+
+```ts
+// client-errors.ts
+import { createErrataClient } from 'errata'
+import type { errors } from './errors' // type-only import
+
+export const clientErrors = createErrataClient<typeof errors>()
+
+async function fetchErrorPayload(): Promise<unknown> {
+  const res = await fetch('/api/do-thing')
+  return res.json()
+}
+function redirect(path: string) { /* ... */ }
+function scheduleRetry() { /* ... */ }
+
+const payload = await fetchErrorPayload()
+const err = clientErrors.deserialize(payload)
+
+if (clientErrors.is(err, 'auth.*')) {
+  redirect('/login')
+}
+
+if (clientErrors.hasTag(err, 'retryable')) {
+  scheduleRetry()
+}
+```
+
+Client helpers mirror the server surface (`is`, `match`, `hasTag`, `safe`, `ensure`) but operate on the serialized shape—no need to ship the full registry to the client.
+
+## Strict mode (client)
+
+By default, client deserialization is permissive: any payload with a `code` is accepted.
+If you want to accept **only** Errata‑branded payloads, enable strict mode:
+
+```ts
+export const clientErrors = createErrataClient<typeof errors>({
+  strict: true,
+})
+```
+
+Strict mode requires `__brand`, `code`, and `message`. Plugins still run before the built‑in deserializer.

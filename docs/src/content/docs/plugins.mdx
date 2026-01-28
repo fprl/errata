@@ -1,0 +1,99 @@
+---
+title: Plugins
+description: Extend Errata with mappings, logging, scrubbing, and shared codes.
+---
+
+Plugins hook into creation, serialization, and unknown error mapping. They can also inject codes into your registry.
+
+## Hooks at a glance
+
+- `codes`: inject more codes (merged after your registry; warns on collisions).
+- `onUnknown(error, ctx)`: map third-party errors to Errata (first non-null wins).
+- `onCreate(error, ctx)`: side effects when an error is created (logging/metrics).
+- `onSerialize(payload, error, ctx)`: scrub or enrich serialized payloads.
+
+## Map third-party errors (Stripe)
+
+```ts
+import { Stripe } from 'stripe'
+import { code, defineCodes, definePlugin, errata, props } from 'errata'
+
+const myCodes = defineCodes({
+  billing: {
+    payment_failed: code({
+      status: 402,
+      message: ({ details }) => `Payment failed: ${details.reason}`,
+      expose: true,
+      tags: ['payments', 'retryable'] as const,
+      details: props<{ reason: string }>(),
+    }),
+  },
+})
+
+const stripePlugin = definePlugin({
+  name: 'stripe',
+  codes: myCodes,
+  onUnknown: (error) => {
+    if (error instanceof Stripe.errors.StripeError) {
+      return { code: 'billing.payment_failed', details: { reason: error.code ?? 'stripe_error' } }
+    }
+    return null
+  },
+})
+
+export const errors = errata({
+  codes: myCodes,
+  plugins: [stripePlugin],
+})
+```
+
+## Log creations (Sentry, Datadog, etc.)
+
+```ts
+import { definePlugin, errata } from 'errata'
+
+function logToSentry(err: unknown) { /* ... */ }
+
+const loggerPlugin = definePlugin({
+  name: 'logger',
+  onCreate: (err, ctx) => {
+    logToSentry({ code: err.code, app: ctx.config.app, message: err.message })
+  },
+})
+
+export const errors = errata({
+  app: 'payments',
+  codes: { 'core.internal_error': { message: 'Internal error' } },
+  plugins: [loggerPlugin],
+})
+```
+
+## Scrub payloads on serialize
+
+```ts
+const scrubPlugin = definePlugin({
+  name: 'scrub',
+  onSerialize: (payload, error) => {
+    if (error.code === 'auth.invalid_credentials') {
+      return { ...payload, details: undefined } // force redaction
+    }
+    return payload
+  },
+})
+```
+
+## Ecosystem
+
+Errata is designed for a small core and a growing plugin ecosystem. Good candidates for community plugins:
+
+- Payment SDKs (Stripe, Adyen)
+- DB/ORM errors (Prisma, Drizzle)
+- Validation (Zod, Valibot)
+- API layers (tRPC, GraphQL, RFC 7807)
+- Agent/tooling SDKs (OpenAI, LangChain-style errors)
+
+Notes:
+- Duplicate plugin names warn.
+- Code collisions (plugins vs. base) **throw** by default.
+  Use `allowPluginOverride: true` if you intentionally want plugin codes to override.
+- `onUnknown` stops at the first plugin returning non-null; `onCreate` runs for all.

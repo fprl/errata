@@ -1,0 +1,34 @@
+---
+title: Errata
+description: A typed error registry for TypeScript.
+template: splash
+hero:
+  tagline: Errors are data. Define them like it.
+  actions:
+    - text: Quick Start
+      link: /introduction
+      icon: right-arrow
+      variant: primary
+    - text: GitHub
+      link: https://github.com/fprl/errata
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why Errata?
+
+<CardGrid>
+  <Card title="Central Registry" icon="list-format">
+    Stop scattering `throw new Error` strings across your codebase. Define a single source of truth.
+  </Card>
+  <Card title="Type Safe" icon="approve-check">
+    Full TypeScript inference for error details. `props<{ id: string }>()` ensures you never miss data.
+  </Card>
+  <Card title="Runs Anywhere" icon="rocket">
+    Zero dependencies. Works in Node, Bun, Deno, Workers, and the Browser.
+  </Card>
+  <Card title="Boundary Ready" icon="random">
+    Serialize errors across the network or worker threads without losing type safety.
+  </Card>
+</CardGrid>

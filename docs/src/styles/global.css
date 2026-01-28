@@ -1,0 +1,48 @@
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+	/*
+	Configure your Tailwind theme that will be used by Starlight.
+	https://starlight.astro.build/guides/css-and-tailwind/#styling-starlight-with-tailwind
+	*/
+}
+
+/*
+Add additional Tailwind styles to this file:
+https://tailwindcss.com/docs/adding-custom-styles#using-custom-css
+*/
+
+/* https://github.com/withastro/astro/issues/10382#issuecomment-2200731838 */
+/* .astro-code {
+	overflow: visible !important;
+} */
+
+/* https://docs.astro.build/en/guides/syntax-highlighting/#customizing-shiki-themes */
+/* https://shiki.style/guide/dual-themes#query-based-dark-mode */
+
+/* Support both OS preference and Starlight's theme toggle for Shiki output */
+@media (prefers-color-scheme: dark) {
+	html[data-theme="dark"] {
+		.astro-code.github-dark,
+		.astro-code.github-dark span {
+			color: var(--shiki-dark) !important;
+			background-color: var(--shiki-dark-bg) !important;
+			font-style: var(--shiki-dark-font-style) !important;
+			font-weight: var(--shiki-dark-font-weight) !important;
+			text-decoration: var(--shiki-dark-text-decoration) !important;
+		}
+	}
+}
+
+html[data-theme='dark'] .astro-code.github-dark,
+html[data-theme='dark'] .astro-code.github-dark span {
+	color: var(--shiki-dark) !important;
+	background-color: var(--shiki-dark-bg) !important;
+	font-style: var(--shiki-dark-font-style) !important;
+	font-weight: var(--shiki-dark-font-weight) !important;
+	text-decoration: var(--shiki-dark-text-decoration) !important;
+}

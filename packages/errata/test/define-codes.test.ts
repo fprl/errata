@@ -21,16 +21,18 @@ describe('defineCodes', () => {
   })
 
   it('throws on deeper than one-level nesting', () => {
-    expect(() => {
-      defineCodes({
-        level1: {
-          level2: {
-            level3: {
-              message: 'nope',
-            },
+    const deep = {
+      level1: {
+        level2: {
+          level3: {
+            message: 'nope',
           },
         },
-      })
+      },
+    } as unknown as Record<string, any>
+
+    expect(() => {
+      defineCodes(deep)
     }).toThrow(/one level/)
   })
 

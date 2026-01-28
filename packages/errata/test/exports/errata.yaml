@@ -1,0 +1,13 @@
+.:
+  code: function
+  createErrataClient: function
+  defineClientPlugin: function
+  defineCodes: function
+  definePlugin: function
+  errata: function
+  ErrataClientError: function
+  ErrataError: function
+  props: function
+./client:
+  createErrataClient: function
+  ErrataClientError: function

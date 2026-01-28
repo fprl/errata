@@ -6,5 +6,5 @@ export default defineConfig({
     'src/client.ts',
   ],
   dts: true,
-  exports: true,
+  exports: false,
 })

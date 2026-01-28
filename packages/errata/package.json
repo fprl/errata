@@ -33,15 +33,14 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "check": "pnpm lint && pnpm typecheck && pnpm test:ci",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
     "dev": "tsdown --watch",
     "lint": "eslint",
     "prepublishOnly": "pnpm build",
     "release": "bumpp",
-    "ship": "pnpm check && pnpm publish",
     "start": "tsx src/index.ts",
-    "test": "vitest",
-    "test:ci": "vitest run",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc",
     "prepare": "simple-git-hooks"
   },

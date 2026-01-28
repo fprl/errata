@@ -138,6 +138,8 @@ export interface ErrataClientOptions {
   app?: string
   /** Optional lifecycle plugins (payload adaptation, logging). */
   plugins?: ErrataClientPlugin[]
+  /** Require strict payload shape for built-in deserialize (plugins still run first). */
+  strict?: boolean
   /**
    * Called when normalizing unknown values that are not recognized as serialized errors.
    * Return a code (string) to map it; return null/undefined to fall back to errata.unknown_error.
@@ -155,7 +157,7 @@ export interface ErrataClientOptions {
 export function createErrataClient<TServer extends ErrataInstance<any>>(
   options: ErrataClientOptions = {},
 ): ErrataClient<InferCodes<TServer>> {
-  const { app, plugins = [], onUnknown } = options
+  const { app, plugins = [], onUnknown, strict = false } = options
 
   type TCodes = InferCodes<TServer>
   type Code = CodeOf<TCodes>
@@ -230,11 +232,17 @@ export function createErrataClient<TServer extends ErrataInstance<any>>(
       }
     }
 
-    // Standard deserialization logic
+    // Standard deserialization logic (strict mode enforces brand + minimal shape)
     let error: ErrataClientErrorForCodes<TCodes, ClientBoundaryCode>
     if (payload && typeof payload === 'object') {
-      const withCode = payload as { code?: unknown }
-      if (typeof withCode.code === 'string') {
+      const withCode = payload as { __brand?: unknown, code?: unknown, message?: unknown }
+      const isStrictMatch = strict
+        ? (withCode.__brand === LIB_NAME
+          && typeof withCode.code === 'string'
+          && typeof withCode.message === 'string')
+        : typeof withCode.code === 'string'
+
+      if (isStrictMatch) {
         error = new ErrataClientError(withCode as SerializedError<ClientBoundaryCode, any>)
       }
       else if (onUnknown) {

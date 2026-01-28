@@ -45,6 +45,36 @@ describe('client error client', () => {
   })
 })
 
+describe('client strict mode', () => {
+  it('rejects unbranded payloads when strict', () => {
+    const client = createErrataClient<typeof errors>({ strict: true })
+    const err = client.deserialize({ code: 'auth.invalid_token', message: 'Invalid token' })
+    expect(err.code).toBe('errata.unknown_error')
+  })
+
+  it('accepts branded payloads when strict', () => {
+    const client = createErrataClient<typeof errors>({ strict: true })
+    const payload = errors.serialize(errors.create('auth.invalid_token', { reason: 'expired' }))
+    const err = client.deserialize(payload)
+    expect(err.code).toBe('auth.invalid_token')
+  })
+
+  it('falls back to onUnknown when strict payload is invalid', () => {
+    const client = createErrataClient<typeof errors>({
+      strict: true,
+      onUnknown: () => 'core.internal_error',
+    })
+    const err = client.deserialize({ __brand: 'errata', code: 'auth.invalid_token' })
+    expect(err.code).toBe('core.internal_error')
+  })
+
+  it('allows unbranded payloads when strict is false', () => {
+    const client = createErrataClient<typeof errors>()
+    const err = client.deserialize({ code: 'auth.invalid_token', message: 'Invalid token' })
+    expect(err.code).toBe('auth.invalid_token')
+  })
+})
+
 describe('client pattern matching: is()', () => {
   const client = createErrataClient<typeof errors>()
 

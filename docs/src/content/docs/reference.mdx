@@ -23,8 +23,9 @@ description: Methods, hooks, and types at a glance.
 - `defaultStatus`, `defaultExpose`, `defaultRetryable`: per-code defaults.
 - `codes`: required registry (use `defineCodes`).
 - `plugins?`: optional; merged after your codes.
+- `allowPluginOverride?`: allow plugins to override existing codes (default `false`; collisions throw).
 - `onUnknown?(error, ctx)`: map unknown inputs; return a code or `null`.
-- `captureStack?`: controls stack capture (defaults on unless production + env).
+- `captureStack?`: controls stack capture (defaults to `true`).
 
 ## Plugin hooks
 
@@ -38,6 +39,13 @@ description: Methods, hooks, and types at a glance.
 - Methods: `deserialize`, `ensure`, `is`, `match`, `hasTag`, `safe`.
 - Uses the same code/detail unions as the server type; no registry shipped.
 - Supports client plugins: `onDeserialize`, `onCreate`.
+
+## Client options
+
+- `app?`: app identifier for logging/observability.
+- `plugins?`: client plugins for payload adaptation and side effects.
+- `strict?`: require branded payloads (`__brand`, `code`, `message`) for built‑in deserialization.
+- `onUnknown?(error, ctx)`: map unknown inputs; return a code or `null`.
 
 ## Types and helpers
 

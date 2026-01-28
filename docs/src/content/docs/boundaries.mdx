@@ -63,3 +63,16 @@ if (clientErrors.hasTag(err, 'retryable')) {
 ```
 
 Client helpers mirror the server surface (`is`, `match`, `hasTag`, `safe`, `ensure`) but operate on the serialized shape—no need to ship the full registry to the client.
+
+## Strict mode (client)
+
+By default, client deserialization is permissive: any payload with a `code` is accepted.
+If you want to accept **only** Errata‑branded payloads, enable strict mode:
+
+```ts
+export const clientErrors = createErrataClient<typeof errors>({
+  strict: true,
+})
+```
+
+Strict mode requires `__brand`, `code`, and `message`. Plugins still run before the built‑in deserializer.

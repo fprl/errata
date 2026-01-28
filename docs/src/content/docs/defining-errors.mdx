@@ -13,6 +13,7 @@ description: Define codes, details, messages, and metadata.
 ## Structure
 
 Use `defineCodes` to declare codes as flat strings or nested objects (flattened to dot-notation).
+Nesting is supported **one level deep** (e.g. `auth.invalid_credentials`). Deeper nesting throws at runtime.
 
 ```ts
 import { code, defineCodes, errata, props } from 'errata'

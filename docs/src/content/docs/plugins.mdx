@@ -82,7 +82,18 @@ const scrubPlugin = definePlugin({
 })
 ```
 
+## Ecosystem
+
+Errata is designed for a small core and a growing plugin ecosystem. Good candidates for community plugins:
+
+- Payment SDKs (Stripe, Adyen)
+- DB/ORM errors (Prisma, Drizzle)
+- Validation (Zod, Valibot)
+- API layers (tRPC, GraphQL, RFC 7807)
+- Agent/tooling SDKs (OpenAI, LangChain-style errors)
+
 Notes:
 - Duplicate plugin names warn.
-- Code collisions (plugins vs. base) warn.
+- Code collisions (plugins vs. base) **throw** by default.
+  Use `allowPluginOverride: true` if you intentionally want plugin codes to override.
 - `onUnknown` stops at the first plugin returning non-null; `onCreate` runs for all.
